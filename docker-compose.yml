@@ -7,7 +7,7 @@ services:
   data:
     image: mullenkamp/wps-geog-nz:1.0
     volumes:
-      - wps-geog:/data
+      - wps-geog:/data/WPS_GEOG
     # networks:
     #   - net
     deploy:
