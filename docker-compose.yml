@@ -18,7 +18,7 @@ services:
     image: mullenkamp/wrf-era5-runs:1.1
     # user: ${MY_UID}:${MY_GID}
     volumes:
-        - "/home/mike/git/wrf-repos/wrf-era5-runs/parameters.toml:/app/parameters.toml"
+        - "~/git/wrf-repos/wrf-era5-runs/parameters.toml:/app/parameters.toml"
         - '~/git/wrf-repos/wrf-testing/namelists/namelist_uc_v02b.wps:/data/namelists/namelist.wps'
         - '~/git/wrf-repos/wrf-testing/namelists/namelist_uc_v02b.input:/data/namelists/namelist.input'
         # - '~/Build_WRF/WPS_GEOG:/WPS_GEOG'
