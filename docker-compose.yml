@@ -1,6 +1,19 @@
 version: '3.3'
 
+volumes:
+  wps-geog:
+
 services:
+  data:
+    image: mullenkamp/wps-geog-nz:1.0
+    volumes:
+      - wps-geog:/data
+    # networks:
+    #   - net
+    deploy:
+      restart_policy:
+        condition: none
+
   wrf-runs:
     image: mullenkamp/wrf-era5-runs:1.1
     # user: ${MY_UID}:${MY_GID}
@@ -8,6 +21,11 @@ services:
         - "/home/mike/git/wrf-repos/wrf-era5-runs/parameters.toml:/app/parameters.toml"
         - '~/git/wrf-repos/wrf-testing/namelists/namelist_uc_v02b.wps:/namelists/namelist.wps'
         - '~/git/wrf-repos/wrf-testing/namelists/namelist_uc_v02b.input:/namelists/namelist.input'
-        - '~/Build_WRF/WPS_GEOG:/WPS_GEOG'
+        # - '~/Build_WRF/WPS_GEOG:/WPS_GEOG'
+        - wps-geog:/WPS_GEOG
         - '~/data/wrf/tests/test_data:/data'
+
+    depends_on:
+      data:
+        condition: service_completed_successfully
 
