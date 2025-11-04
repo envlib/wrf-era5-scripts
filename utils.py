@@ -225,7 +225,7 @@ def recalc_geogrid(geogrid, domains):
     ## Update other parameters in namelist.wps
     domain_index = [domain - 1 for domain in domains]
     new_top_parent_id = parent_ids[new_top_domain - 1]
-    geogrid['parent_id'] = [pid - new_top_parent_id if pid > 1 else 1 for pid in domain_index]
+    geogrid['parent_id'] = [pid - new_top_parent_id if pid - new_top_parent_id > 1 else 1 for pid in domain_index]
     
     new_parent_grid_ratio = [parent_grid_ratio[index] for index in domain_index]
     new_parent_grid_ratio[0] = 1

@@ -230,11 +230,18 @@ def check_set_params(domains):
 
     if 'max_step_increase_pct' in wrf_domains:
         wrf_domains['max_step_increase_pct'] = [wrf_domains['max_step_increase_pct'][domain - 1] for domain in domains]
+        # if n_domains > 1:
         wrf_domains['max_step_increase_pct'][0] = 5
+
+    # wrf_domains['parent_id'] = [wrf_domains['parent_id'][domain - 1] for domain in domains]
+    # wrf_domains['parent_id'][0] = 1
 
     wrf_domains['grid_id'] = list(range(1, n_domains + 1))
     wrf_domains['parent_time_step_ratio'] = [wrf_domains['parent_time_step_ratio'][domain - 1] for domain in domains]
     wrf_domains['parent_time_step_ratio'][0] = 1
+
+    dx = wrf_domains['dx']
+    wrf_domains['time_step'] = int(dx * 0.001 * 6)
 
     ### Physics - Most should be done by the user
     ## Output precip rate to history file
@@ -274,7 +281,18 @@ def check_set_params(domains):
 
 
 
+def set_ndown_params():
+    """
+    Should be set after ndown is run.
+    """
+    wrf_nml = f90nml.read(params.wrf_nml_path)
 
+    wrf_nml['bdy_control']['have_bcs_moist'] = True
+    wrf_nml['bdy_control']['have_bcs_scalar'] = True
+    wrf_nml['time_control']['io_form_auxinput2'] = 2
+
+    with open(params.wrf_nml_path, 'w') as nml_file:
+       wrf_nml.write(nml_file)
 
 
 

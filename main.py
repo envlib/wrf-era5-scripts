@@ -12,7 +12,7 @@ import pendulum
 import sentry_sdk
 
 # from download_nml_domain import dl_nml_domain
-from set_params import check_set_params
+from set_params import check_set_params, set_ndown_params
 from download_era5 import dl_era5
 from run_era5_to_int import run_era5_to_int
 from run_metgrid import run_metgrid
@@ -110,6 +110,7 @@ if ndown_check:
     run_ndown(run_uuid)
 
     start_date, end_date, hour_interval, outputs = check_set_params(domains)
+    set_ndown_params()
 
     rename_dict = {'_d01_': f'_d{domains[-1]:02d}_'}
 
