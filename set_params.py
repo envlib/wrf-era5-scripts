@@ -16,9 +16,10 @@ import params, utils
 ### function
 
 
+def check_nml_params(domains):
+    """
 
-def check_set_params(domains):
-
+    """
     ##############################################
     ### Assign and check executables
 
@@ -45,17 +46,15 @@ def check_set_params(domains):
     ### Namelist checks
 
     wps_nml = f90nml.read(params.src_wps_nml_path)
-    wrf_nml = f90nml.read(params.src_wrf_nml_path)
-
-    # n_domains = wps_nml['share']['max_dom']
+    # wrf_nml = f90nml.read(params.src_wrf_nml_path)
 
     ## domains
     wps_domains = wps_nml['geogrid']
-    wrf_domains = wrf_nml['domains']
+    # wrf_domains = wrf_nml['domains']
 
     parent_ids = wps_domains['parent_id']
 
-    old_n_domains = len(parent_ids)
+    src_n_domains = len(parent_ids)
 
     for f in params.geogrid_array_fields:
         if f not in wps_domains:
@@ -63,8 +62,8 @@ def check_set_params(domains):
 
         v = wps_domains[f]
 
-        if len(v) != old_n_domains:
-            raise ValueError(f'The field {f} must be an array with {old_n_domains} values.')
+        if len(v) != src_n_domains:
+            raise ValueError(f'The field {f} must be an array with {src_n_domains} values.')
 
         if f in ('e_we', 'e_sn'):
             for i in v:
@@ -80,10 +79,6 @@ def check_set_params(domains):
         if isinstance(v, list):
             raise ValueError(f'The field {f} must be an single value.')
 
-
-    #########################################
-    ### WPS geogrid processing
-
     if domains:
 
         domains.sort()
@@ -93,14 +88,47 @@ def check_set_params(domains):
             parent_id = parent_ids[domain - 1]
             if parent_id not in domains:
                 raise ValueError(f'The parent_id {parent_id} does not exist in the assigned domains. The parent/child domains must match.')
+    else:
+        domains = list(range(1, src_n_domains + 1))
 
-        # Update the projection if needed
-        _ = utils.recalc_geogrid(wps_domains, domains)
+    # with open(params.wps_nml_path, 'w') as nml_file:
+    #    wps_nml.write(nml_file)
+
+    return src_n_domains, domains
+
+
+def set_nml_params(domains=None):
+    """
+
+    """
+    #########################################
+    ### Read in nml
+
+    wps_nml = f90nml.read(params.src_wps_nml_path)
+    wrf_nml = f90nml.read(params.src_wrf_nml_path)
+
+    ## domains
+    wps_domains = wps_nml['geogrid']
+    wrf_domains = wrf_nml['domains']
+
+    parent_ids = wps_domains['parent_id']
+
+    old_n_domains = len(parent_ids)
+
+    #########################################
+    ### WPS geogrid processing
+
+    if domains:
+
+        domains.sort()
+
+        # Update the geogrid if needed
+        _ = utils.update_geogrid(wps_domains, domains)
 
         n_domains = len(domains)
 
     else:
-        domains = list(range(1, n_domains + 1))
+        domains = list(range(1, old_n_domains + 1))
         n_domains = old_n_domains
 
     #########################################
@@ -210,6 +238,7 @@ def check_set_params(domains):
     wrf_nml['time_control']['end_month'] = [end_date.month] * n_domains
     wrf_nml['time_control']['end_day'] = [end_date.day] * n_domains
     wrf_nml['time_control']['end_hour'] = [end_date.hour] * n_domains
+    wrf_nml['time_control']['input_from_file'] = [True] * n_domains
 
     outputs = ['wrfout']
     if wrf_nml['time_control']['output_diagnostics'] == 1:

@@ -26,7 +26,7 @@ import params
 
 # p = subprocess.Popen([str(params.geogrid_exe)], cwd=params.data_path)
 
-def run_geogrid(rm_existing=True):
+def run_geogrid(src_n_domains, domains, rm_existing=True):
     # f = os.open('/home/mike/data/wrf/tests/geogrid.log', os.O_WRONLY)
 
     if rm_existing:
@@ -49,6 +49,19 @@ def run_geogrid(rm_existing=True):
         raise ValueError(stderr)
 
     print(stdout)
+
+    ## Remove and rename files if needed
+    if len(domains) < src_n_domains:
+        for src_domain in range(1, src_n_domains + 1):
+            if src_domain not in domains:
+                file_path = params.data_path.joinpath(f'geo_em.d{src_domain:02d}.nc')
+                file_path.unlink()
+    
+        for i, domain in enumerate(domains):
+            src_file_path = params.data_path.joinpath(f'geo_em.d{domain:02d}.nc')
+            dst_file_path = params.data_path.joinpath(f'geo_em.d{i+1:02d}.nc')
+    
+            os.rename(src_file_path, dst_file_path)
 
     with h5netcdf.File(params.data_path.joinpath('geo_em.d01.nc')) as f:
         corner_lats = f.attrs['corner_lats']

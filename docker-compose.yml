@@ -20,8 +20,8 @@ services:
     shm_size: '1gb'
     volumes:
         - "~/git/wrf-repos/wrf-era5-runs/parameters.toml:/app/parameters.toml"
-        - '~/git/wrf-repos/wrf-testing/namelists/namelist_uc_v02_5d.wps:/data/namelists/namelist.wps'
-        - '~/git/wrf-repos/wrf-testing/namelists/namelist_uc_v02_5d.input:/data/namelists/namelist.input'
+        - '~/git/wrf-repos/wrf-testing/namelists/namelist_uc_v02_6d.wps:/data/namelists/namelist.wps'
+        - '~/git/wrf-repos/wrf-testing/namelists/namelist_uc_v02_6d.input:/data/namelists/namelist.input'
         # - '~/Build_WRF/WPS_GEOG:/WPS_GEOG'
         - wps-geog:/WPS_GEOG
         - '~/data/wrf/tests/test_data:/data'

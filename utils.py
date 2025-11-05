@@ -185,13 +185,22 @@ def recalc_geogrid(geogrid, domains):
         
         geo_to_proj = pyproj.Transformer.from_crs(geo_crs, proj_crs, always_xy=True)
         proj_to_geo = pyproj.Transformer.from_crs(proj_crs, geo_crs, always_xy=True)
-        
-        for i in range(1, new_top_domain):
-            prev_x_center, prev_y_center = geo_to_proj.transform(ref_lon, lat_0)
-        
-            prev_dx_center = ((e_we[i-1] - 1) * 0.5) * dx
-            prev_dy_center = ((e_sn[i-1] - 1) * 0.5) * dy
-        
+
+        index = new_top_domain - 1
+        domain_seq = [index]
+        while True:
+            parent_id = parent_ids[index]
+            if parent_id > 1:
+                index = parent_id - 1
+                domain_seq.insert(0, index)
+            else:
+                # domain_seq.insert(0, 0)
+                break
+
+        prev_x_center, prev_y_center = geo_to_proj.transform(ref_lon, lat_0)
+        prev_dx_center = ((e_we[0] - 1) * 0.5) * dx
+        prev_dy_center = ((e_sn[0] - 1) * 0.5) * dy
+        for i in domain_seq:
             i_start = i_parent_start[i] - 1
             j_start = j_parent_start[i] - 1
         
@@ -214,7 +223,11 @@ def recalc_geogrid(geogrid, domains):
             new_y_center = prev_y_center + ddy
         
             ref_lon, lat_0 = proj_to_geo.transform(new_x_center, new_y_center)
-        
+
+            prev_x_center, prev_y_center = geo_to_proj.transform(ref_lon, lat_0)
+            prev_dx_center = ((e_we[i] - 1) * 0.5) * dx
+            prev_dy_center = ((e_sn[i] - 1) * 0.5) * dy
+
         lon_0 = ref_lon + lon_angle
     
     ## Save projection back to namelist.wps
@@ -255,6 +268,69 @@ def recalc_geogrid(geogrid, domains):
     return geogrid
 
 
+def update_geogrid(geogrid, domains):
+    """
+
+    """
+    parent_ids = geogrid['parent_id']
+    old_max_domains = len(parent_ids)
+
+    parent_grid_ratio = geogrid['parent_grid_ratio']
+    
+    dx = geogrid['dx']
+    dy = geogrid['dy']
+    
+    i_parent_start = geogrid['i_parent_start']
+    j_parent_start = geogrid['j_parent_start']
+
+    new_top_domain = domains[0]
+
+    if new_top_domain > old_max_domains:
+        raise ValueError('new_top_domain must be greater than max_domains')
+
+    if new_top_domain > 1:
+
+        index = new_top_domain - 1
+        domain_seq = [index]
+        while True:
+            parent_id = parent_ids[index]
+            if parent_id > 1:
+                index = parent_id - 1
+                domain_seq.insert(0, index)
+            else:
+                # domain_seq.insert(0, 0)
+                break
+
+        for i in domain_seq:
+            dx = dx / parent_grid_ratio[i]
+            dy = dy / parent_grid_ratio[i]
+
+    geogrid['dx'] = int(dx)
+    geogrid['dy'] = int(dy)
+    
+    ## Update other parameters in namelist.wps
+    domain_index = [domain - 1 for domain in domains]
+    new_top_parent_id = new_top_domain - 1
+    geogrid['parent_id'] = [parent_ids[pid] - new_top_parent_id if parent_ids[pid] - new_top_parent_id > 1 else 1 for pid in domain_index]
+    
+    new_parent_grid_ratio = [parent_grid_ratio[index] for index in domain_index]
+    new_parent_grid_ratio[0] = 1
+    geogrid['parent_grid_ratio'] = new_parent_grid_ratio
+    
+    new_i_parent_start = [i_parent_start[index] for index in domain_index]
+    new_i_parent_start[0] = 1
+    geogrid['i_parent_start'] = new_i_parent_start
+    
+    new_j_parent_start = [j_parent_start[index] for index in domain_index]
+    new_j_parent_start[0] = 1
+    geogrid['j_parent_start'] = new_j_parent_start
+
+    for p, v in geogrid.items():
+        if isinstance(v, list):
+            if len(v) == old_max_domains:
+                geogrid[p] = [v[index] for index in domain_index]
+
+    return geogrid
 
 
 

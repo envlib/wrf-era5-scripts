@@ -12,7 +12,7 @@ import pendulum
 import sentry_sdk
 
 # from download_nml_domain import dl_nml_domain
-from set_params import check_set_params, set_ndown_params
+from set_params import check_nml_params, set_nml_params, set_ndown_params
 from download_era5 import dl_era5
 from run_era5_to_int import run_era5_to_int
 from run_metgrid import run_metgrid
@@ -50,7 +50,7 @@ sentry_sdk.set_tags({'run_uuid': run_uuid})
 
 start_time = pendulum.now()
 
-print(f'--  run uuid: {run_uuid}')
+print(f'-- run uuid: {run_uuid}')
 
 print(f"-- start time: {start_time.format('YYYY-MM-DD HH:mm:ss')}")
 
@@ -72,7 +72,17 @@ else:
 
 ndown_check, domains_init = check_ndown_params(domains)
 
-start_date, end_date, hour_interval, outputs = check_set_params(domains_init)
+src_n_domains, domains = check_nml_params(domains)
+
+_ = set_nml_params()
+
+print('-- Run geogrid.exe on all nml domains...')
+min_lon, min_lat, max_lon, max_lat = run_geogrid(src_n_domains, domains_init)
+
+print('-- Top domain bounds:')
+print(min_lon, min_lat, max_lon, max_lat, sep=', ')
+
+start_date, end_date, hour_interval, outputs = set_nml_params(domains_init)
 
 print(f'start date: {start_date}, end date: {end_date}, input hour interval: {hour_interval}')
 
@@ -84,12 +94,6 @@ if ndown_check:
     dl_ndown_input(domains_init[0], start_date, end_date)
 else:
     print('-- A full nested domain model will be run')
-
-print('-- Run geogrid.exe...')
-min_lon, min_lat, max_lon, max_lat = run_geogrid()
-
-print('-- Top domain bounds:')
-print(min_lon, min_lat, max_lon, max_lat, sep=', ')
 
 print('-- Downloading ERA5 data...')
 era5_check = dl_era5(start_date, end_date)
@@ -108,7 +112,7 @@ if ndown_check:
     print('-- Running ndown.exe...')
     run_ndown(run_uuid, False)
 
-    start_date, end_date, hour_interval, outputs = check_set_params(domains)
+    start_date, end_date, hour_interval, outputs = set_nml_params(domains)
     set_ndown_params()
 
     rename_dict = {'_d01_': f'_d{domains[-1]:02d}_'}
