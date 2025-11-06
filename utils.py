@@ -121,7 +121,8 @@ def ul_output_files(files, run_path, name, out_path, config_path):
 
     if p.stderr == '':
         for file in files:
-            os.remove(file)
+            if os.path.exists(file):
+                os.remove(file)
         print(f'-- Upload successful in {mins} mins')
 
 
