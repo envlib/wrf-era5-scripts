@@ -87,14 +87,17 @@ def rename_files(files, rename_dict):
 
     """
     if rename_dict:
-        new_files = []
-        for orig, new in rename_dict.items():
-            for file_path in files:
-                orig_path, orig_file_name = os.path.split(file_path)
-                file_name = orig_file_name.replace(orig, new)
-                new_file_path = os.path.join(orig_path, file_name)
-                os.rename(file_path, new_file_path)
-                new_files.append(new_file_path)
+        new_files = set()
+        for file_path in files:
+            orig_path, orig_file_name = os.path.split(file_path)
+            for orig, new in rename_dict.items():
+                if orig in orig_file_name:
+                    file_name = orig_file_name.replace(orig, new)
+                    new_file_path = os.path.join(orig_path, file_name)
+                    os.rename(file_path, new_file_path)
+                    new_files.add(new_file_path)
+
+        new_files = list(new_files)
     else:
         new_files = files
 
@@ -134,27 +137,27 @@ def recalc_geogrid(geogrid, domains):
     old_max_domains = len(parent_ids)
 
     parent_grid_ratio = geogrid['parent_grid_ratio']
-    
+
     dx = geogrid['dx']
     dy = geogrid['dy']
-    
+
     i_parent_start = geogrid['i_parent_start']
     j_parent_start = geogrid['j_parent_start']
-    
+
     e_we = geogrid['e_we']
     e_sn = geogrid['e_sn']
-    
+
     # define original projection
     map_proj = geogrid['map_proj'].lower()
     lat_0 = geogrid['ref_lat']
     lat_1 = geogrid['truelat1']
     lat_2 = geogrid['truelat2']
-    
+
     if 'stand_lon' in geogrid:
         lon_0 = geogrid['stand_lon']
     else:
         lon_0 = geogrid['ref_lon']
-    
+
     ref_lon = geogrid['ref_lon']
 
     new_top_domain = domains[0]
@@ -176,14 +179,14 @@ def recalc_geogrid(geogrid, domains):
         else:
             raise NotImplementedError('WRF proj not implemented yet: '
                                       f'{map_proj}')
-        
+
         proj_crs = pyproj.CRS.from_string(pwrf)
-        
+
         geo_crs = pyproj.CRS(
                 proj='latlong',
                 R=params.wrf_sphere_radius
             )
-        
+
         geo_to_proj = pyproj.Transformer.from_crs(geo_crs, proj_crs, always_xy=True)
         proj_to_geo = pyproj.Transformer.from_crs(proj_crs, geo_crs, always_xy=True)
 
@@ -204,25 +207,25 @@ def recalc_geogrid(geogrid, domains):
         for i in domain_seq:
             i_start = i_parent_start[i] - 1
             j_start = j_parent_start[i] - 1
-        
+
             new_dx_start = i_start * dx
             new_dy_start = j_start * dy
-        
+
             dx = dx / parent_grid_ratio[i]
             dy = dy / parent_grid_ratio[i]
-        
+
             new_dx_end = new_dx_start + (dx * (e_we[i] - 1))
             new_dy_end = new_dy_start + (dy * (e_sn[i] - 1))
-        
+
             new_dx_center = (new_dx_end + new_dx_start) * 0.5
             new_dy_center = (new_dy_end + new_dy_start) * 0.5
-        
+
             ddx = new_dx_center - prev_dx_center
             ddy = new_dy_center - prev_dy_center
-        
+
             new_x_center = prev_x_center + ddx
             new_y_center = prev_y_center + ddy
-        
+
             ref_lon, lat_0 = proj_to_geo.transform(new_x_center, new_y_center)
 
             prev_x_center, prev_y_center = geo_to_proj.transform(ref_lon, lat_0)
@@ -230,12 +233,12 @@ def recalc_geogrid(geogrid, domains):
             prev_dy_center = ((e_sn[i] - 1) * 0.5) * dy
 
         lon_0 = ref_lon + lon_angle
-    
+
     ## Save projection back to namelist.wps
     ref_lat = round(lat_0, 6)
     ref_lon = round(ref_lon, 6)
     stand_lon = round(lon_0, 6)
-    
+
     geogrid['dx'] = int(dx)
     geogrid['dy'] = int(dy)
     geogrid['ref_lat'] = ref_lat
@@ -243,20 +246,20 @@ def recalc_geogrid(geogrid, domains):
     geogrid['truelat1'] = ref_lat
     geogrid['truelat2'] = ref_lat
     geogrid['stand_lon'] = stand_lon
-    
+
     ## Update other parameters in namelist.wps
     domain_index = [domain - 1 for domain in domains]
     new_top_parent_id = new_top_domain - 1
     geogrid['parent_id'] = [parent_ids[pid] - new_top_parent_id if parent_ids[pid] - new_top_parent_id > 1 else 1 for pid in domain_index]
-    
+
     new_parent_grid_ratio = [parent_grid_ratio[index] for index in domain_index]
     new_parent_grid_ratio[0] = 1
     geogrid['parent_grid_ratio'] = new_parent_grid_ratio
-    
+
     new_i_parent_start = [i_parent_start[index] for index in domain_index]
     new_i_parent_start[0] = 1
     geogrid['i_parent_start'] = new_i_parent_start
-    
+
     new_j_parent_start = [j_parent_start[index] for index in domain_index]
     new_j_parent_start[0] = 1
     geogrid['j_parent_start'] = new_j_parent_start
@@ -277,10 +280,10 @@ def update_geogrid(geogrid, domains):
     old_max_domains = len(parent_ids)
 
     parent_grid_ratio = geogrid['parent_grid_ratio']
-    
+
     dx = geogrid['dx']
     dy = geogrid['dy']
-    
+
     i_parent_start = geogrid['i_parent_start']
     j_parent_start = geogrid['j_parent_start']
 
@@ -308,20 +311,20 @@ def update_geogrid(geogrid, domains):
 
     geogrid['dx'] = int(dx)
     geogrid['dy'] = int(dy)
-    
+
     ## Update other parameters in namelist.wps
     domain_index = [domain - 1 for domain in domains]
     new_top_parent_id = new_top_domain - 1
     geogrid['parent_id'] = [parent_ids[pid] - new_top_parent_id if parent_ids[pid] - new_top_parent_id > 1 else 1 for pid in domain_index]
-    
+
     new_parent_grid_ratio = [parent_grid_ratio[index] for index in domain_index]
     new_parent_grid_ratio[0] = 1
     geogrid['parent_grid_ratio'] = new_parent_grid_ratio
-    
+
     new_i_parent_start = [i_parent_start[index] for index in domain_index]
     new_i_parent_start[0] = 1
     geogrid['i_parent_start'] = new_i_parent_start
-    
+
     new_j_parent_start = [j_parent_start[index] for index in domain_index]
     new_j_parent_start[0] = 1
     geogrid['j_parent_start'] = new_j_parent_start

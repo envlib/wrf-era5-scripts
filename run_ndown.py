@@ -39,7 +39,7 @@ def run_ndown(run_uuid, del_old=True):
     wrf_nml = f90nml.read(params.wrf_nml_path)
     wrf_nml['time_control']['io_form_auxinput2'] = 2
     wrf_nml['time_control']['fine_input_stream'] = [0, 2] # Is this needed?
-    wrf_nml['time_control']['interval_seconds'] = wrf_nml['time_control']['auxhist22_interval'][0] * 60
+    wrf_nml['time_control']['interval_seconds'] = wrf_nml['time_control']['history_interval'][0] * 60
 
     with open(params.wrf_nml_path, 'w') as nml_file:
        wrf_nml.write(nml_file)
