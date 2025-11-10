@@ -146,6 +146,7 @@ def set_nml_params(domains=None):
     wrf_nml['time_control']['io_form_restart'] = 2
     wrf_nml['time_control']['io_form_input'] = 2
     wrf_nml['time_control']['io_form_boundary'] = 2
+    wrf_nml['time_control']['adjust_output_times'] = True
 
     start_date = datetime.fromisoformat(params.file['time_control']['start_date'])
     end_date = datetime.fromisoformat(params.file['time_control']['end_date'])
