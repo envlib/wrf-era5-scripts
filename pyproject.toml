@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "wrf-preprocessing"
+name = "wrf-era5-scripts"
 version = '0.0.1'
 description = ''
 readme = "README.md"
