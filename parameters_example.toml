@@ -1,0 +1,63 @@
+### This is an example of a parameters file for running WRF using the associated docker image. 
+### Several aspects are fixed. Output files are daily and the output time interval must be hourly or greater.
+
+n_cores = 8 # Don't use any more than 24 cores. Efficiency drops significantly past 24 cores.
+
+domains = [1, 2, 3] # Can be removed to run all domains listed in the namelist files.
+
+# [no_docker]  # Comment out when using a docker container
+# wps_path = '~/Build_WRF/WPS-4.6.0'
+# wrf_path = '~/Build_WRF/WRF-4.6.1-ARW'
+# data_path = '~/data/wrf/tests/test_data/'
+# geog_data_path = '~/Build_WRF/WPS_GEOG'
+
+[time_control] # The time period you want wrfout data
+start_date = "2023-02-12 00:00:00"
+end_date = "2023-02-12 06:00:00"
+# start_date = "2020-02-03 00:00:00"
+# end_date = "2020-02-07 00:00:00"
+
+interval_seconds = 10800 # time interval of the ERA5 input data, which is the interval (secs) between times in the lateral boundary condition file
+
+[time_control.history_file]
+history_interval = {1=180, 2=180, 3=60, 4=60, 5=60, 6=60} # The interval in minutes that the output should be written out for each domain where {domain=n_minutes}. Must match the number of domains in namelists
+history_begin = 0 # Number of mins from the start of the run in which the history output file (wrfout) is written. This will be subtracted from the start_date.
+
+[time_control.summary_file]
+output_diagnostics = 0 # A value of 1 makes the output
+auxhist3_interval = 1440 # Number of minutes to output
+n_hours_per_file = 240
+
+[time_control.z_level_file]
+z_lev_diags = 1 # A value of 1 makes the output
+z_levels = [20, 30, 80, 150, 200, 350, 500, 750, 1000, 1300, 1600, 2000, 2500, 3000, 4000, 5000, 7000, 10000] # Heights in meters above ground. Might not work at values < 30. Change dzbot in physics to 30 for 20 m height to work.
+
+# [sentry] # Uncomment these lines and assign the appropriate dsn to use sentry
+# dsn = ""
+# tags = {task = 'wrf run'}
+
+# [ndown] # Comment out all ndown parameters when not using ndown
+# [ndown.input]
+# type = 's3'
+# provider = 'Mega'
+# endpoint = 'https://s3.ca-west-1.s4.mega.io'
+# access_key_id = ''
+# secret_access_key = ''
+# path = '/data/wrf/output/physics_tests/2023-02-10/d03_SMS-3DTKE'
+
+[remote]
+[remote.era5]
+type = 's3'
+provider = 'Mega'
+endpoint = 'https://s3.ca-west-1.s4.mega.io'
+access_key_id = ''
+secret_access_key = ''
+path = '/data/ncar/era5/'
+
+[remote.output]
+type = 's3'
+provider = 'Mega'
+endpoint = 'https://s3.ca-west-1.s4.mega.io'
+access_key_id = ''
+secret_access_key = ''
+path = '/data/wrf/output/ndown_test'
