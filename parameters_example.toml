@@ -26,7 +26,7 @@ history_begin = 0 # Number of mins from the start of the run in which the histor
 [time_control.summary_file]
 output_diagnostics = 0 # A value of 1 makes the output
 auxhist3_interval = 1440 # Number of minutes to output
-n_hours_per_file = 240
+n_days_per_file = 1
 
 [time_control.z_level_file]
 z_lev_diags = 1 # A value of 1 makes the output
