@@ -128,7 +128,7 @@ else:
 start_time2 = pendulum.now()
 
 print('-- Running WRF...')
-monitor_wrf(outputs, end_date, run_uuid, rename_dict)
+monitor_wrf(outputs, run_uuid, rename_dict)
 
 end_time = pendulum.now()
 

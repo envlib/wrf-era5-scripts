@@ -39,6 +39,20 @@ def create_rclone_config(name, config_path, config_dict):
     return config_path
 
 
+def dt_to_file_names(prefix, dts, domains):
+    """
+    pendulum datetimes to wrfout file names.
+    """
+    out_list = []
+    for dt in dts:
+        date_str = dt.strftime(params.wps_date_format)
+        for domain in domains:
+            file_name = params.outfile_format.format(prefix=prefix, domain=domain, date=date_str)
+            out_list.append(file_name)
+
+    return out_list
+
+
 def read_last_line(file_path):
     """
 
@@ -50,36 +64,50 @@ def read_last_line(file_path):
     return p.stdout.strip('\n')
 
 
-def query_out_files(run_path, output_globs):
-    """
-
-    """
-    out_files = {}
-    for glob in output_globs:
-        for file_path in run_path.glob(glob):
-            file_name = file_path.name
-            out_name, domain, datetime = file_name.split('_', 2)
-            if (out_name, domain) in out_files:
-                out_files[(out_name, domain)].append(str(file_path))
-                out_files[(out_name, domain)].sort()
-            else:
-                out_files[(out_name, domain)] = [str(file_path)]
-
-    return out_files
-
-
-def select_files_to_ul(out_files, min_files):
+def query_out_files(run_path, out_files):
     """
 
     """
     files = []
-    for grp, file_paths in out_files.items():
-        n_files = len(file_paths)
-        file_paths.sort(reverse=True)
-        if n_files > min_files:
-            files.extend(file_paths[min_files:n_files])
+    for file_path in run_path.iterdir():
+        if file_path.is_file():
+            file_name = file_path.name
+            if file_name in out_files:
+                files.append(str(file_path))
 
     return files
+
+
+# def query_out_files(run_path, output_globs):
+#     """
+
+#     """
+#     out_files = {}
+#     for glob in output_globs:
+#         for file_path in run_path.glob(glob):
+#             file_name = file_path.name
+#             out_name, domain, datetime = file_name.split('_', 2)
+#             if (out_name, domain) in out_files:
+#                 out_files[(out_name, domain)].append(str(file_path))
+#                 out_files[(out_name, domain)].sort()
+#             else:
+#                 out_files[(out_name, domain)] = [str(file_path)]
+
+#     return out_files
+
+
+# def select_files_to_ul(out_files, min_files):
+#     """
+
+#     """
+#     files = []
+#     for grp, file_paths in out_files.items():
+#         n_files = len(file_paths)
+#         file_paths.sort(reverse=True)
+#         if n_files > min_files:
+#             files.extend(file_paths[min_files:n_files])
+
+#     return files
 
 
 def rename_files(files, rename_dict):

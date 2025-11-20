@@ -10,6 +10,7 @@ import pathlib
 import f90nml
 from datetime import datetime, timedelta
 import subprocess
+import pendulum
 
 import params, utils
 
@@ -150,27 +151,27 @@ def set_nml_params(domains=None):
     wrf_nml['time_control']['io_form_boundary'] = 2
     wrf_nml['time_control']['adjust_output_times'] = True
 
-    start_date = datetime.fromisoformat(params.file['time_control']['start_date'])
-    end_date = datetime.fromisoformat(params.file['time_control']['end_date'])
+    start_date = pendulum.parse(params.file['time_control']['start_date'])
+    end_date = pendulum.parse(params.file['time_control']['end_date'])
 
     if start_date > end_date:
         raise ValueError(f'start_date ({start_date}) is greater than end_date ({end_date}).')
 
-    interval_secs = params.file['time_control']['interval_seconds']
+    interval_hours = int(params.file['time_control']['interval_hours'])
+
+    # if interval_secs % (60*60) != 0:
+    #     raise ValueError('interval_seconds must be an interval of an hour.')
     
-    if interval_secs % (60*60) != 0:
-        raise ValueError('interval_seconds must be an interval of an hour.')
+    wps_nml['share']['interval_seconds'] = interval_hours*60*60
+    wrf_nml['time_control']['interval_seconds'] = interval_hours*60*60
     
-    wps_nml['share']['interval_seconds'] = interval_secs
-    wrf_nml['time_control']['interval_seconds'] = interval_secs
-    
-    history_intervals = params.file['time_control']['history_file']['history_interval']
-    history_intervals = {int(domain): hi for domain, hi in history_intervals.items() if int(domain) in domains}
+    history_intervals = params.file['time_control']['history_file']['interval_hours']
+    history_intervals = {int(domain): int(hi*60) for domain, hi in history_intervals.items() if int(domain) in domains}
     history_interval_nml = [history_intervals[i] for i in domains]
 
-    for hi in history_interval_nml:
-        if hi % 60 != 0:
-            raise ValueError('history interval must be an interval of an hour.')
+    # for hi in history_interval_nml:
+    #     if hi % 60 != 0:
+    #         raise ValueError('history interval must be an interval of an hour.')
     
     wrf_nml['time_control']['history_interval'] = history_interval_nml
     
@@ -181,42 +182,58 @@ def set_nml_params(domains=None):
         hours = int(hi/60)
         frames_per_outfile.append(int(n_hours_per_file/hours))
 
-    history_begin = params.file['time_control']['history_file']['history_begin']
+    history_begin = int(params.file['time_control']['history_file']['begin_hours']) * 60
 
     wrf_nml['time_control']['frames_per_outfile'] = frames_per_outfile
     wrf_nml['time_control']['history_begin'] = [history_begin] * n_domains
     wrf_nml['time_control']['history_outname'] = params.history_outname
 
+    new_start_date = start_date.subtract(minutes=history_begin)
+
+    interval = pendulum.interval(start_date, end_date.subtract(minutes=1))
+
+    output_files = utils.dt_to_file_names('wrfout', interval.range('days'), domains)
+
     ## Other output files
     summ_file = params.file['time_control']['summary_file']
-    output_diagnostics = summ_file['output_diagnostics']
-    
-    wrf_nml['time_control']['output_diagnostics'] = output_diagnostics
-    
-    if output_diagnostics == 1:
-        diag_interval = summ_file['auxhist3_interval']
 
-        if diag_interval % (60*24) != 0:
-            raise ValueError('auxhist3_interval must be an interval of a day.')
+    if summ_file['output']:
+        if start_date.hour != 0 or end_date.hour != 0:
+            raise ValueError('Generating the summary file requires that the start and end dates are on the hour.')
 
-        wrf_nml['time_control']['auxhist3_interval'] = [diag_interval] * n_domains
-    
+        diag_interval_days = int(summ_file['interval_days'])
         n_days_per_file = summ_file['n_days_per_file']
-    
-        days = int(diag_interval/60/24)
-    
-        wrf_nml['time_control']['frames_per_auxhist3'] = [int(n_days_per_file/days)] * n_domains
+
+        if n_days_per_file < diag_interval_days:
+            raise ValueError('For the summary file, n_days_per_file must be >= interval_days')
+
+        wrf_nml['time_control']['output_diagnostics'] = 1
+
+        wrf_nml['time_control']['auxhist3_interval'] = [diag_interval_days*60*24] * n_domains
+
+        wrf_nml['time_control']['frames_per_auxhist3'] = [int(n_days_per_file/diag_interval_days)] * n_domains
     
         wrf_nml['time_control']['auxhist3_outname'] = params.summ_outname
         wrf_nml['time_control']['io_form_auxhist3'] = 2
-        wrf_nml['time_control']['auxhist3_begin'] = [params.file['time_control']['history_file']['history_begin']] * n_domains
+        wrf_nml['time_control']['auxhist3_begin'] = [history_begin] * n_domains
+
+        interval = pendulum.interval(start_date, end_date)
+
+        if interval.days % n_days_per_file != 0:
+            raise ValueError('For the summary file, n_days_per_file ({n_days_per_file}) must divide evenly into the end_date - start_date interval ({interval.days}).')
+
+        dts = list(interval.range('days', n_days_per_file))[1:]
+        files = utils.dt_to_file_names('wrfxtrm', dts, domains)
+        output_files.extend(files)
+
+    else:
+        wrf_nml['time_control']['output_diagnostics'] = 0
 
     z_level_file = params.file['time_control']['z_level_file']
-    z_level_flag = z_level_file['z_lev_diags']
-    
-    wrf_nml['diags']['z_lev_diags'] = z_level_flag
 
-    if z_level_flag == 1:
+    if z_level_file['output']:
+        wrf_nml['diags']['z_lev_diags'] = 1
+
         wrf_nml['diags']['z_levels'] = [-z for z in z_level_file['z_levels']]
         wrf_nml['diags']['num_z_levels'] = len(z_level_file['z_levels'])
 
@@ -224,30 +241,27 @@ def set_nml_params(domains=None):
         wrf_nml['time_control']['io_form_auxhist22'] = 2
         wrf_nml['time_control']['auxhist22_interval'] = history_interval_nml
         wrf_nml['time_control']['frames_per_auxhist22'] = frames_per_outfile
-        wrf_nml['time_control']['auxhist22_begin'] = [params.file['time_control']['history_file']['history_begin']] * n_domains
+        wrf_nml['time_control']['auxhist22_begin'] = [history_begin] * n_domains
 
-    history_begin = wrf_nml['time_control']['history_begin'][0]
+        interval = pendulum.interval(start_date, end_date.subtract(minutes=1))
+        files = utils.dt_to_file_names('wrfzlevels', interval.range('days'), domains)
+        output_files.extend(files)
 
-    start_date = start_date - timedelta(minutes=history_begin)
+    else:
+        wrf_nml['diags']['z_lev_diags'] = 0
 
-    wps_nml['share']['start_date'] = [start_date.strftime(params.wps_date_format)] * n_domains
+    wps_nml['share']['start_date'] = [new_start_date.strftime(params.wps_date_format)] * n_domains
     wps_nml['share']['end_date'] = [end_date.strftime(params.wps_date_format)] * n_domains
 
-    wrf_nml['time_control']['start_year'] = [start_date.year] * n_domains
-    wrf_nml['time_control']['start_month'] = [start_date.month] * n_domains
-    wrf_nml['time_control']['start_day'] = [start_date.day] * n_domains
-    wrf_nml['time_control']['start_hour'] = [start_date.hour] * n_domains
+    wrf_nml['time_control']['start_year'] = [new_start_date.year] * n_domains
+    wrf_nml['time_control']['start_month'] = [new_start_date.month] * n_domains
+    wrf_nml['time_control']['start_day'] = [new_start_date.day] * n_domains
+    wrf_nml['time_control']['start_hour'] = [new_start_date.hour] * n_domains
     wrf_nml['time_control']['end_year'] = [end_date.year] * n_domains
     wrf_nml['time_control']['end_month'] = [end_date.month] * n_domains
     wrf_nml['time_control']['end_day'] = [end_date.day] * n_domains
     wrf_nml['time_control']['end_hour'] = [end_date.hour] * n_domains
     wrf_nml['time_control']['input_from_file'] = [True] * n_domains
-
-    outputs = ['wrfout']
-    if wrf_nml['time_control']['output_diagnostics'] == 1:
-        outputs.append('summ')
-    if wrf_nml['diags']['z_lev_diags'] == 1:
-        outputs.append('zlevel')
 
     ### Domains - namelist.wps copied to namelist.input
     wps_nml['geogrid']['geog_data_path'] = str(params.geog_data_path)
@@ -316,7 +330,7 @@ def set_nml_params(domains=None):
     with open(params.wrf_nml_path, 'w') as nml_file:
        wrf_nml.write(nml_file)
 
-    return start_date, end_date, int(wrf_nml['time_control']['interval_seconds']/(60*60)), outputs
+    return new_start_date.naive(), end_date.naive(), int(wrf_nml['time_control']['interval_seconds']/(60*60)), output_files
 
 
 

@@ -62,6 +62,8 @@ wps_nml_path = data_path.joinpath('namelist.wps')
 
 wps_date_format = '%Y-%m-%d_%H:%M:%S'
 
+outfile_format = '{prefix}_d{domain:02}_{date}.nc'
+
 geogrid_array_fields = ('parent_id', 'parent_grid_ratio', 'i_parent_start', 'j_parent_start', 'e_we', 'e_sn', 'geog_data_res')
 
 geogrid_single_fields = ('dx', 'dy', 'map_proj', 'ref_lat', 'ref_lon', 'stand_lon')

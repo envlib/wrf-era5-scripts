@@ -9,7 +9,6 @@ import os
 import pathlib
 import shlex
 import subprocess
-import pendulum
 import copy
 import sentry_sdk
 from time import sleep
@@ -22,16 +21,16 @@ import utils
 
 
 
-out_files_glob = {'wrfout': 'wrfout_d*',
-                  'zlevel': 'wrfzlevels_d*',
-                  'summ': 'wrfxtrm_d*',
-                  }
+# out_files_glob = {'wrfout': 'wrfout_d*',
+#                   'zlevel': 'wrfzlevels_d*',
+#                   'summ': 'wrfxtrm_d*',
+#                   }
 
 ###########################################
 ### Functions
 
 
-def monitor_wrf(outputs, end_date, run_uuid, rename_dict):
+def monitor_wrf(outputs, run_uuid, rename_dict):
     """
 
     """
@@ -44,9 +43,9 @@ def monitor_wrf(outputs, end_date, run_uuid, rename_dict):
     else:
         out_path = None
 
-    output_globs = [out_files_glob[op] for op in outputs]
+    # output_globs = [out_files_glob[op] for op in outputs]
 
-    run_path = params.data_path.joinpath('run')
+    run_path = params.run_path
 
     n_cores = params.file['n_cores']
 
@@ -56,9 +55,9 @@ def monitor_wrf(outputs, end_date, run_uuid, rename_dict):
 
     check = p.poll()
     while check is None:
-        out_files = utils.query_out_files(run_path, output_globs)
+        files = utils.query_out_files(run_path, outputs)
 
-        files = utils.select_files_to_ul(out_files, 1)
+        # files = utils.select_files_to_ul(out_files, 1)
 
         if files and out_path is not None:
             files = utils.rename_files(files, rename_dict)
@@ -71,12 +70,14 @@ def monitor_wrf(outputs, end_date, run_uuid, rename_dict):
     results_str = utils.read_last_line(wrf_log_path)
 
     if 'SUCCESS COMPLETE WRF' in results_str:
-        out_files = utils.query_out_files(run_path, output_globs)
+        # out_files = utils.query_out_files(run_path, output_globs)
 
-        if end_date.hour == 0:
-            files = utils.select_files_to_ul(out_files, 1)
-        else:
-            files = utils.select_files_to_ul(out_files, 0)
+        # if end_date.hour == 0:
+        #     files = utils.select_files_to_ul(out_files, 1)
+        # else:
+        #     files = utils.select_files_to_ul(out_files, 0)
+
+        files = utils.query_out_files(run_path, outputs)
 
         if files and out_path is not None:
             files = utils.rename_files(files, rename_dict)
