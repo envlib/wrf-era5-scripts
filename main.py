@@ -79,7 +79,7 @@ src_n_domains, domains = check_nml_params(domains)
 
 _ = set_nml_params()
 
-print('-- Run geogrid.exe on all nml domains...')
+print('-- Run geogrid.exe...')
 min_lon, min_lat, max_lon, max_lat = run_geogrid(src_n_domains, domains_init)
 
 print('-- Top domain bounds:')
@@ -128,7 +128,7 @@ else:
 start_time2 = pendulum.now()
 
 print('-- Running WRF...')
-monitor_wrf(outputs, run_uuid, rename_dict)
+monitor_wrf(outputs, end_date, run_uuid, rename_dict)
 
 end_time = pendulum.now()
 

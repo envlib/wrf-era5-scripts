@@ -64,16 +64,22 @@ def read_last_line(file_path):
     return p.stdout.strip('\n')
 
 
-def query_out_files(run_path, out_files):
+def query_out_files(run_path, out_files, include_xtrm=False):
     """
 
     """
-    files = []
+    files = {}
     for file_path in run_path.iterdir():
         if file_path.is_file():
             file_name = file_path.name
             if file_name in out_files:
-                files.append(str(file_path))
+                out_name, domain, datetime = file_name.split('_', 2)
+                if (out_name == 'wrfxtrm' and include_xtrm) or out_name != 'wrfxtrm':
+                    if (out_name, domain) in files:
+                        files[(out_name, domain)].append(str(file_path))
+                        files[(out_name, domain)].sort()
+                    else:
+                        files[(out_name, domain)] = [str(file_path)]
 
     return files
 
@@ -96,18 +102,21 @@ def query_out_files(run_path, out_files):
 #     return out_files
 
 
-# def select_files_to_ul(out_files, min_files):
-#     """
+def select_files_to_ul(out_files, min_files):
+    """
 
-#     """
-#     files = []
-#     for grp, file_paths in out_files.items():
-#         n_files = len(file_paths)
-#         file_paths.sort(reverse=True)
-#         if n_files > min_files:
-#             files.extend(file_paths[min_files:n_files])
+    """
+    files = []
+    for grp, file_paths in out_files.items():
+        out_name, domain = grp
+        n_files = len(file_paths)
+        file_paths.sort(reverse=True)
+        if out_name == 'wrfxtrm':
+            files.extend(file_paths)
+        elif n_files > min_files:
+            files.extend(file_paths[min_files:n_files])
 
-#     return files
+    return files
 
 
 def rename_files(files, rename_dict):

@@ -215,14 +215,14 @@ def set_nml_params(domains=None):
     
         wrf_nml['time_control']['auxhist3_outname'] = params.summ_outname
         wrf_nml['time_control']['io_form_auxhist3'] = 2
-        wrf_nml['time_control']['auxhist3_begin'] = [history_begin] * n_domains
+        wrf_nml['time_control']['auxhist3_begin'] = [history_begin*2] * n_domains
 
-        interval = pendulum.interval(start_date, end_date)
+        interval = pendulum.interval(start_date.add(days=1), end_date.add(days=1))
 
         if interval.days % n_days_per_file != 0:
-            raise ValueError('For the summary file, n_days_per_file ({n_days_per_file}) must divide evenly into the end_date - start_date interval ({interval.days}).')
+            raise ValueError(f'For the summary file, n_days_per_file ({n_days_per_file}) must divide evenly into the end_date - start_date interval ({interval.days}).')
 
-        dts = list(interval.range('days', n_days_per_file))[1:]
+        dts = list(interval.range('days', n_days_per_file))[:-1]
         files = utils.dt_to_file_names('wrfxtrm', dts, domains)
         output_files.extend(files)
 
