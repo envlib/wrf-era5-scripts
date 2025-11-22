@@ -192,7 +192,8 @@ def set_nml_params(domains=None):
 
     interval = pendulum.interval(start_date, end_date.subtract(minutes=1))
 
-    output_files = utils.dt_to_file_names('wrfout', interval.range('days'), domains)
+    domain_i = list(range(1, len(domains) + 1))
+    output_files = utils.dt_to_file_names('wrfout', interval.range('days'), domain_i)
 
     ## Other output files
     summ_file = params.file['time_control']['summary_file']
@@ -223,7 +224,7 @@ def set_nml_params(domains=None):
             raise ValueError(f'For the summary file, n_days_per_file ({n_days_per_file}) must divide evenly into the end_date - start_date interval ({interval.days}).')
 
         dts = list(interval.range('days', n_days_per_file))[:-1]
-        files = utils.dt_to_file_names('wrfxtrm', dts, domains)
+        files = utils.dt_to_file_names('wrfxtrm', dts, domain_i)
         output_files.extend(files)
 
     else:
@@ -244,7 +245,7 @@ def set_nml_params(domains=None):
         wrf_nml['time_control']['auxhist22_begin'] = [history_begin] * n_domains
 
         interval = pendulum.interval(start_date, end_date.subtract(minutes=1))
-        files = utils.dt_to_file_names('wrfzlevels', interval.range('days'), domains)
+        files = utils.dt_to_file_names('wrfzlevels', interval.range('days'), domain_i)
         output_files.extend(files)
 
     else:
