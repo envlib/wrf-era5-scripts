@@ -184,8 +184,11 @@ def set_nml_params(domains=None):
 
     frames_per_outfile = []
     for hi in history_interval_nml:
-        hours = int(hi/60)
-        frames_per_outfile.append(int(n_hours_per_file/hours))
+        if hi == 0:
+            frames_per_outfile.append(0)
+        else:
+            hours = int(hi/60)
+            frames_per_outfile.append(int(n_hours_per_file/hours))
 
     history_begin = int(params.file['time_control']['history_file']['begin_hours']) * 60
 
