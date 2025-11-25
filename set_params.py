@@ -152,7 +152,12 @@ def set_nml_params(domains=None):
     wrf_nml['time_control']['adjust_output_times'] = True
 
     start_date = pendulum.parse(params.file['time_control']['start_date'])
-    end_date = pendulum.parse(params.file['time_control']['end_date'])
+    if 'end_date' in params.file['time_control']:
+        end_date = pendulum.parse(params.file['time_control']['end_date'])
+    elif 'duration' in params.file['time_control']:
+        end_date = start_date.add(hours=params.file['time_control']['duration'])
+    else:
+        raise ValueError('end_date or duration must be assigned in the parameters.')
 
     if start_date > end_date:
         raise ValueError(f'start_date ({start_date}) is greater than end_date ({end_date}).')

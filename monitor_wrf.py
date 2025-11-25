@@ -49,7 +49,7 @@ def monitor_wrf(outputs, end_date, run_uuid, rename_dict):
 
     n_cores = params.file['n_cores']
 
-    cmd_str = f'mpirun -np {n_cores} --bind-to core ./wrf.exe'
+    cmd_str = f'mpirun -np {n_cores} --map-by core ./wrf.exe'
     cmd_list = shlex.split(cmd_str)
     p = subprocess.Popen(cmd_list, cwd=run_path)
 

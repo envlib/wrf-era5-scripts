@@ -49,7 +49,7 @@ def run_real(run_uuid, del_old=True):
     p = subprocess.run(cmd_str, shell=True, capture_output=False, text=False, check=False, cwd=params.run_path)
 
     ## Run real.exe
-    cmd_str = f'mpirun -n 4 {params.real_exe}'
+    cmd_str = f'mpirun -n 4 --map-by core {params.real_exe}'
     cmd_list = shlex.split(cmd_str)
     p = subprocess.run(cmd_list, capture_output=False, text=False, check=False, cwd=params.run_path)
 

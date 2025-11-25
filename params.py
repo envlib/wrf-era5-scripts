@@ -39,6 +39,12 @@ if 'end_date' in os.environ:
 if 'domains' in os.environ:
     file['domains'] = os.environ['domains']
 
+if 'n_cores' in os.environ:
+    file['n_cores'] = os.environ['n_cores']
+
+if 'duration' in os.environ:
+    file['time_control']['duration'] = os.environ['duration']
+
 run_path = data_path.joinpath('run')
 
 is_sentry = 'sentry' in file
