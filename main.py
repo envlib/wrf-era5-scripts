@@ -77,7 +77,10 @@ ndown_check, domains_init = check_ndown_params(domains)
 
 src_n_domains, domains = check_nml_params(domains)
 
-_ = set_nml_params()
+if domains_init[0] == 1 and all([domain - i == 1 for i, domain in enumerate(domains_init)]):
+    _ = set_nml_params(domains_init)
+else:
+    _ = set_nml_params()
 
 print('-- Run geogrid.exe...')
 min_lon, min_lat, max_lon, max_lat = run_geogrid(src_n_domains, domains_init)

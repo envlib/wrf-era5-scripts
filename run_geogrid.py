@@ -55,7 +55,8 @@ def run_geogrid(src_n_domains, domains, rm_existing=True):
         for src_domain in range(1, src_n_domains + 1):
             if src_domain not in domains:
                 file_path = params.data_path.joinpath(f'geo_em.d{src_domain:02d}.nc')
-                file_path.unlink()
+                if file_path.exists():
+                    file_path.unlink()
     
         for i, domain in enumerate(domains):
             src_file_path = params.data_path.joinpath(f'geo_em.d{domain:02d}.nc')
