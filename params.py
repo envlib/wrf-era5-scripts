@@ -42,8 +42,8 @@ if 'domains' in os.environ:
 if 'n_cores' in os.environ:
     file['n_cores'] = os.environ['n_cores']
 
-if 'duration' in os.environ:
-    file['time_control']['duration'] = os.environ['duration']
+if 'duration_hours' in os.environ:
+    file['time_control']['duration_hours'] = os.environ['duration_hours']
 
 run_path = data_path.joinpath('run')
 

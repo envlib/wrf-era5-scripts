@@ -154,8 +154,8 @@ def set_nml_params(domains=None):
     start_date = pendulum.parse(params.file['time_control']['start_date'])
     if 'end_date' in params.file['time_control']:
         end_date = pendulum.parse(params.file['time_control']['end_date'])
-    elif 'duration' in params.file['time_control']:
-        end_date = start_date.add(hours=params.file['time_control']['duration'])
+    elif 'duration_hours' in params.file['time_control']:
+        end_date = start_date.add(hours=params.file['time_control']['duration_hours'])
     else:
         raise ValueError('end_date or duration must be assigned in the parameters.')
 
