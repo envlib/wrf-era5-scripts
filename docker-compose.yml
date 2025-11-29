@@ -6,7 +6,7 @@ services:
     # user: ${MY_UID}:${MY_GID}
     shm_size: '1gb'
     volumes:
-        - "~/git/wrf-repos/wrf-era5-runs/parameters.toml:/app/parameters.toml"
+        - "~/git/wrf-repos/wrf-era5-scripts/parameters.toml:/app/parameters.toml"
         - '~/git/wrf-repos/wrf-testing/namelists/namelist_uc_v02_6d.wps:/data/namelists/namelist.wps'
         - '~/git/wrf-repos/wrf-testing/namelists/namelist_uc_v02_6d.input:/data/namelists/namelist.input'
         - ~/WPS_GEOG:/WPS_GEOG
