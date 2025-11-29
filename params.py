@@ -37,13 +37,21 @@ if 'end_date' in os.environ:
     file['time_control']['end_date'] = os.environ['end_date']
 
 if 'domains' in os.environ:
-    file['domains'] = os.environ['domains']
+    domains = os.environ['domains']
+    if isinstance(domains, int):
+        domains = [domains]
+    elif isinstance(domains, str):
+        domains = [int(s) for s in domains.split(',')]
+    else:
+        raise ValueError('domains env variable should be either an int or a string of ints with commas separating them.')
+
+    file['domains'] = domains
 
 if 'n_cores' in os.environ:
-    file['n_cores'] = os.environ['n_cores']
+    file['n_cores'] = int(os.environ['n_cores'])
 
 if 'duration_hours' in os.environ:
-    file['time_control']['duration_hours'] = os.environ['duration_hours']
+    file['time_control']['duration_hours'] = int(os.environ['duration_hours'])
 
 run_path = data_path.joinpath('run')
 
