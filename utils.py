@@ -141,6 +141,22 @@ def rename_files(files, rename_dict):
     return new_files
 
 
+def filter_variables(files, variables):
+    """
+
+    """
+    vars_str = ','.join(variables)
+    for file_path in files:
+        orig_path, orig_file_name = os.path.split(file_path)
+        if 'wrfout' in orig_file_name:
+            cmd_str = f'ncks -O -4 -L 1 -v {vars_str} {orig_file_name} wrf_temp.nc'
+            cmd_list = shlex.split(cmd_str)
+            p = subprocess.run(cmd_list, capture_output=True, text=True, check=True, cwd=orig_path)
+            os.replace(os.path.join(orig_path, 'wrf_temp.nc'), file_path)
+
+    return True
+
+
 def ul_output_files(files, run_path, name, out_path, config_path):
     """
 

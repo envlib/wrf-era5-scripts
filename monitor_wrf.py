@@ -60,6 +60,9 @@ def monitor_wrf(outputs, end_date, run_uuid, rename_dict):
         files = utils.select_files_to_ul(files, 1)
 
         if files and out_path is not None:
+            if params.output_variables:
+                print('- wrfout variables will be filtered based on the output_variables.')
+                utils.filter_variables(files, params.output_variables)
             files = utils.rename_files(files, rename_dict)
             utils.ul_output_files(files, run_path, name, out_path, params.config_path)
 
@@ -80,6 +83,9 @@ def monitor_wrf(outputs, end_date, run_uuid, rename_dict):
         files = utils.select_files_to_ul(files, 0)
 
         if files and out_path is not None:
+            if params.output_variables:
+                print('- wrfout variables will be filtered based on the output_variables.')
+                utils.filter_variables(files, params.output_variables)
             files = utils.rename_files(files, rename_dict)
             utils.ul_output_files(files, run_path, name, out_path, params.config_path)
 

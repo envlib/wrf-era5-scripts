@@ -53,9 +53,15 @@ if 'n_cores' in os.environ:
 if 'duration_hours' in os.environ:
     file['time_control']['duration_hours'] = int(os.environ['duration_hours'])
 
+if 'output_variables' in file:
+    output_variables = file['output_variables']
+else:
+    output_variables = None
+
 run_path = data_path.joinpath('run')
 
 is_sentry = 'sentry' in file
+
 
 
 ##############################################
