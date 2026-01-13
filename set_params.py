@@ -55,7 +55,7 @@ def check_nml_params(domains):
     wps_domains = wps_nml['geogrid']
     # wrf_domains = wrf_nml['domains']
 
-    parent_ids = list(wps_domains['parent_id'])
+    parent_ids = utils.to_list(wps_domains['parent_id'])
 
     src_n_domains = len(parent_ids)
 
@@ -63,7 +63,7 @@ def check_nml_params(domains):
         if f not in wps_domains:
             raise ValueError(f'The geogrid field {f} does not exist in the namelist.wps.')
 
-        v = wps_domains[f]
+        v = utils.to_list(wps_domains[f])
 
         if len(v) != src_n_domains:
             raise ValueError(f'The field {f} must be an array with {src_n_domains} values.')
