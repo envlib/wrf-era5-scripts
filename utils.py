@@ -23,6 +23,15 @@ import params
 #######################################################
 ### Functions
 
+def to_list(val):
+    """
+
+    """
+    if not isinstance(val, list):
+        val = [val]
+
+    return val
+
 
 def create_rclone_config(name, config_path, config_dict):
     """
@@ -186,19 +195,19 @@ def recalc_geogrid(geogrid, domains):
     """
 
     """
-    parent_ids = geogrid['parent_id']
+    parent_ids = to_list(geogrid['parent_id'])
     old_max_domains = len(parent_ids)
 
-    parent_grid_ratio = geogrid['parent_grid_ratio']
+    parent_grid_ratio = to_list(geogrid['parent_grid_ratio'])
 
     dx = geogrid['dx']
     dy = geogrid['dy']
 
-    i_parent_start = geogrid['i_parent_start']
-    j_parent_start = geogrid['j_parent_start']
+    i_parent_start = to_list(geogrid['i_parent_start'])
+    j_parent_start = to_list(geogrid['j_parent_start'])
 
-    e_we = geogrid['e_we']
-    e_sn = geogrid['e_sn']
+    e_we = to_list(geogrid['e_we'])
+    e_sn = to_list(geogrid['e_sn'])
 
     # define original projection
     map_proj = geogrid['map_proj'].lower()
@@ -329,16 +338,16 @@ def update_geogrid(geogrid, domains):
     """
 
     """
-    parent_ids = geogrid['parent_id']
+    parent_ids = to_list(geogrid['parent_id'])
     old_max_domains = len(parent_ids)
 
-    parent_grid_ratio = geogrid['parent_grid_ratio']
+    parent_grid_ratio = to_list(geogrid['parent_grid_ratio'])
 
     dx = geogrid['dx']
     dy = geogrid['dy']
 
-    i_parent_start = geogrid['i_parent_start']
-    j_parent_start = geogrid['j_parent_start']
+    i_parent_start = to_list(geogrid['i_parent_start'])
+    j_parent_start = to_list(geogrid['j_parent_start'])
 
     new_top_domain = domains[0]
 

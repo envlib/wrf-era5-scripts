@@ -55,7 +55,7 @@ def check_nml_params(domains):
     wps_domains = wps_nml['geogrid']
     # wrf_domains = wrf_nml['domains']
 
-    parent_ids = wps_domains['parent_id']
+    parent_ids = list(wps_domains['parent_id'])
 
     src_n_domains = len(parent_ids)
 
@@ -114,7 +114,7 @@ def set_nml_params(domains=None):
     wps_domains = wps_nml['geogrid']
     wrf_domains = wrf_nml['domains']
 
-    parent_ids = wps_domains['parent_id']
+    parent_ids = utils.to_list(wps_domains['parent_id'])
 
     old_n_domains = len(parent_ids)
 
@@ -283,7 +283,8 @@ def set_nml_params(domains=None):
     wrf_domains['max_dom'] = n_domains
 
     if 'max_step_increase_pct' in wrf_domains:
-        wrf_domains['max_step_increase_pct'] = [wrf_domains['max_step_increase_pct'][domain - 1] for domain in domains]
+        max_step_increase_pct = utils.to_list(wrf_domains['max_step_increase_pct'])
+        wrf_domains['max_step_increase_pct'] = [max_step_increase_pct[domain - 1] for domain in domains]
         # if n_domains > 1:
         wrf_domains['max_step_increase_pct'][0] = 5
 
@@ -291,7 +292,8 @@ def set_nml_params(domains=None):
     # wrf_domains['parent_id'][0] = 1
 
     wrf_domains['grid_id'] = list(range(1, n_domains + 1))
-    wrf_domains['parent_time_step_ratio'] = [wrf_domains['parent_time_step_ratio'][domain - 1] for domain in domains]
+    parent_time_step_ratio = utils.to_list(wrf_domains['parent_time_step_ratio'])
+    wrf_domains['parent_time_step_ratio'] = [parent_time_step_ratio[domain - 1] for domain in domains]
     wrf_domains['parent_time_step_ratio'][0] = 1
 
     dx = wrf_domains['dx']
