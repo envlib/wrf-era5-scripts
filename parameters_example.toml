@@ -27,10 +27,10 @@ domains = [1, 2]
 start_date = "1990-07-02 00:00:00"     # Simulation start (format: "YYYY-MM-DD HH:MM:SS")
 # end_date = "1990-07-02 06:00:00"     # Simulation end -- use either end_date or duration_hours
 duration_hours = 48                     # Simulation length in hours (alternative to end_date)
-interval_hours = 3                      # Boundary condition update interval (must match ERA5 input frequency)
+interval_hours = 3                      # Boundary condition update interval in hours (this is the ERA5 input frequency)
 
 [time_control.history_file]
-interval_hours = [24, 1, 1, 1, 1, 1]   # wrfout output interval per domain (hours). Array must match domain count in [grid].
+interval_hours = [24, 1, 1, 1, 1, 1]   # wrfout output interval per domain (hours). Array must match domain count in [grid]. Must be integers.
 begin_hours = 0                         # Hours after start_date before first wrfout output (0 = immediate)
 
 [time_control.summary_file]
