@@ -1688,7 +1688,7 @@ wheels = [
 ]
 
 [[package]]
-name = "wrf-preprocessing"
+name = "wrf-era5-scripts"
 version = "0.0.1"
 source = { editable = "." }
 dependencies = [

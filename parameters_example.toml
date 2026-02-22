@@ -1,53 +1,193 @@
-n_cores = 8 # Don't use any more than 24 cores. Efficiency drops significantly past 24 cores.
+# Number of MPI processes for wrf.exe (via mpirun -n)
+n_cores = 8
 
-domains = [1, 2] # A selection of the domains to be run. Can be commented out to run all domains listed in the namelist files.
+# Which domains to run (subset of those defined in [grid]). Comment out to run all.
+# Parent/child nesting must be preserved (e.g. [1,2] or [3,4] but not [1,3] if 3's parent is 2).
+domains = [1, 2]
 
-# output_variables = ['XLAT', 'XLONG', 'LU_INDEX', 'HGT', 'T2', 'Q2', 'PSFC', 'U10', 'V10', 'TSK', 'SWDOWN', 'GLW', 'OLR', 'ALBEDO', 'EMISS', 'HFX', 'LH', 'GRDFLX', 'SST', 'RECH', 'PREC_ACC_C', 'PREC_ACC_NC', 'QFX', 'SMOIS', 'TSLB', 'CANWAT', 'SFROFF', 'UDROFF', 'SNOW_ACC_NC'] # This list of variables will filter the wrfout files to only contain these variables. Comment out to retain all variables in the wrfout files.
+# Filter wrfout variables to reduce file size. Comment out to retain all variables.
+# output_variables = ['XLAT', 'XLONG', 'LU_INDEX', 'HGT', 'T2', 'Q2', 'PSFC', 'U10', 'V10', 'TSK', 'SWDOWN', 'GLW', 'OLR', 'ALBEDO', 'EMISS', 'HFX', 'LH', 'GRDFLX', 'SST', 'RECH', 'PREC_ACC_C', 'PREC_ACC_NC', 'QFX', 'SMOIS', 'TSLB', 'CANWAT', 'SFROFF', 'UDROFF', 'SNOW_ACC_NC']
 
-# [no_docker]  # Comment out when using a docker container
-# wps_path = '/home/mike/Build_WRF/WPS-4.6.0'
-# wrf_path = '/home/mike/Build_WRF/WRF-4.6.1-ARW'
-# data_path = '/home/mike/data/wrf/tests/test_data/'
-# geog_data_path = '/home/mike/WPS_GEOG'
+# =============================================================================
+# Local (non-Docker) mode -- uncomment to run outside the Docker container.
+# All four paths are required. When omitted, the pipeline assumes Docker paths.
+# =============================================================================
+
+# [no_docker]
+# wps_path = '/home/mike/Build_WRF/WPS-4.6.0'          # WPS installation directory
+# wrf_path = '/home/mike/Build_WRF/WRF-4.6.1-ARW'      # WRF installation directory
+# data_path = '/home/mike/data/wrf/tests/test_data/'     # Working directory for namelists, metgrid, etc.
+# geog_data_path = '/home/mike/WPS_GEOG'                 # Static geography data (WPS_GEOG)
+
+# =============================================================================
+# Time control -- simulation period and output configuration
+# =============================================================================
 
 [time_control]
-start_date = "1990-07-02 00:00:00"
-# end_date = "1990-07-02 06:00:00"
-
-duration_hours = 48 # Alternative to the end_date
-
-interval_hours = 3 # time interval between incoming data from the time series data, which is the interval (hours) between times in the lateral boundary condition file
+start_date = "1990-07-02 00:00:00"     # Simulation start (format: "YYYY-MM-DD HH:MM:SS")
+# end_date = "1990-07-02 06:00:00"     # Simulation end -- use either end_date or duration_hours
+duration_hours = 48                     # Simulation length in hours (alternative to end_date)
+interval_hours = 3                      # Boundary condition update interval (must match ERA5 input frequency)
 
 [time_control.history_file]
-interval_hours = {1=24, 2=1, 3=1, 4=1, 5=1, 6=1} # The interval in hours that the output should be written out for each domain where {domain=n_hours}. Must match the number of domains in namelists
-begin_hours = 0 # Number of hours from the start of the run in which the history output file (wrfout) is written. This will be subtracted from the start_date.
+interval_hours = [24, 1, 1, 1, 1, 1]   # wrfout output interval per domain (hours). Array must match domain count in [grid].
+begin_hours = 0                         # Hours after start_date before first wrfout output (0 = immediate)
 
 [time_control.summary_file]
-output = true # Whether to output the summary file or not
-interval_days = 1 # Number of days to summarise the data over
-n_days_per_file = 1 # Must be equal to or larger than interval_days
+output = true                           # Enable wrfxtrm daily diagnostics (start/end dates must be on the hour)
+interval_days = 1                       # Diagnostics accumulation period (days)
+n_days_per_file = 1                     # Days per wrfxtrm file (must be >= interval_days, must divide evenly into run length)
 
 [time_control.z_level_file]
-output = true # Whether to output the summary file or not
-z_levels = [30, 80, 150, 200, 350, 500, 750, 1000, 1300, 1600, 2000, 2500, 3000, 4000, 5000, 7000, 10000] # Heights in meters above ground. Might not work at values < 30. Change dzbot in physics to 30 for 20 m height to work.
+output = true                           # Enable wrfzlevels height-interpolated output
+z_levels = [30, 80, 150, 200, 350, 500, 750, 1000, 1300, 1600, 2000, 2500, 3000, 4000, 5000, 7000, 10000]  # Heights in meters AGL
 
-# [sentry] # Comment out if not in use
-# dsn = ""
-# tags = {task = 'wrf run'}
+# =============================================================================
+# Domain geometry -- replaces namelist.wps &geogrid section
+# Array fields must have one value per domain (6 domains = 6 values).
+# The "domains" parameter above selects which subset to actually run.
+# =============================================================================
 
-### The parameters below use rclone configuration. It does not have to be S3; it can also be smb or local configurations.
+[grid]
+dx = 27000                              # Grid spacing in meters (outermost domain, west-east)
+dy = 27000                              # Grid spacing in meters (outermost domain, south-north)
+map_proj = 'lambert'                    # Map projection: 'lambert', 'mercator', or 'polar'
+ref_lat = -39.619                       # Center latitude of the outermost domain
+ref_lon = 170.083                       # Center longitude of the outermost domain
+truelat1 = -39.619                      # First true latitude for projection
+truelat2 = -39.619                      # Second true latitude (same as truelat1 for tangent projection)
+stand_lon = -129.917                    # Standard longitude (projection center longitude)
+parent_id         = [1, 1, 2, 3, 3, 3]           # Parent domain index for each domain (domain 1 is always 1)
+parent_grid_ratio = [1, 3, 3, 3, 3, 3]           # Grid refinement ratio relative to parent (domain 1 is always 1)
+i_parent_start    = [1, 35, 14, 160, 171, 42]    # Nest lower-left corner, west-east (in parent grid points)
+j_parent_start    = [1, 21, 12, 35, 308, 419]    # Nest lower-left corner, south-north (in parent grid points)
+e_we              = [100, 133, 316, 319, 316, 406]  # Grid points west-east (must be >= 100)
+e_sn              = [112, 202, 535, 832, 556, 238]  # Grid points south-north (must be >= 100)
+geog_data_res     = ['default', 'default', 'default', 'modis_15s_lake+default', 'modis_15s_lake+default', 'modis_15s_lake+default']  # Geography data resolution per domain
+e_vert            = 33                  # Vertical levels (scalar = same for all domains, or array per domain)
+p_top_requested   = 5000               # Pressure at model top (Pa)
+parent_time_step_ratio = [1, 3, 3, 3, 3, 3]  # Time step ratio relative to parent (domain 1 is always 1)
 
-# [ndown] # Should be fully commented out if not running ndown
+# =============================================================================
+# Physics overrides -- optional. Uncomment to override defaults.
+# Scalar values apply to all domains. Arrays must match domain count above.
+# Any valid WRF &physics namelist key is accepted.
+#
+# Defaults (if this section is omitted):
+#   mp_physics = 6              WSM6 (WRF Single-Moment 6-class)
+#   cu_physics = 16             New Tiedtke
+#   ra_lw_physics = 4           RRTMG longwave
+#   ra_sw_physics = 4           RRTMG shortwave
+#   bl_pbl_physics = 0          No PBL scheme (use with km_opt = 5 for SMS-3DTKE)
+#   sf_sfclay_physics = 1       Revised MM5 Monin-Obukhov
+#   sf_surface_physics = 4      Noah-MP
+#   sf_ocean_physics = 0        No ocean model (SST from input)
+#   radt = 30                   Radiation calling interval (minutes)
+#   bldt = 0                    PBL calling interval (0 = every time step)
+#   cudt = 5                    Cumulus calling interval (minutes)
+#   icloud = 1                  Cloud fraction method for radiation
+#   num_land_cat = 21           Land-use categories (MODIS)
+#   sf_urban_physics = 0        No urban model
+#   sst_update = 1              Update SST from wrflowinp
+#   usemonalb = true            Use monthly albedo from geogrid
+#   sst_skin = 0                No skin SST calculation
+#
+# Common microphysics alternatives:
+#   6 = WSM6, 8 = Thompson, 10 = Morrison 2-mom, 28 = Thompson Aerosol
+# Common cumulus alternatives (0 = none, typical for dx < ~4 km):
+#   1 = Kain-Fritsch, 3 = Grell-Freitas, 6 = Tiedtke, 16 = New Tiedtke
+# Common PBL alternatives:
+#   1 = YSU, 2 = MYJ, 5 = MYNN2
+# Common land-surface alternatives:
+#   2 = Noah, 3 = RUC, 4 = Noah-MP
+# =============================================================================
+
+# [physics]
+# mp_physics = 8                         # Thompson; scalar = same for all domains
+# cu_physics = [16, 16, 16, 0, 0, 0]    # array = per domain (disable cumulus on fine grids)
+
+# =============================================================================
+# Dynamics overrides -- optional. Same rules as [physics].
+#
+# Defaults (if this section is omitted):
+#   hybrid_opt = 2              Hybrid vertical coordinate
+#   w_damping = 1               Vertical velocity damping on
+#   diff_opt = 2                Full diffusion (metric terms on slopes)
+#   km_opt = 5                  SMS-3DTKE (scale-adaptive 3D TKE, since V4.2)
+#   diff_6th_opt = 0            6th-order horizontal diffusion off
+#   diff_6th_factor = 0.12      6th-order diffusion scaling factor
+#   base_temp = 290.0           Base state temperature (K)
+#   damp_opt = 3                Implicit gravity-wave damping layer
+#   zdamp = 5000.0              Damping depth from model top (m)
+#   dampcoef = 0.2              Damping coefficient
+#   khdif = 0                   Horizontal diffusion constant (m^2/s)
+#   kvdif = 0                   Vertical diffusion constant (m^2/s)
+#   non_hydrostatic = true      Non-hydrostatic mode
+#   moist_adv_opt = 1           Positive-definite moisture advection
+#   scalar_adv_opt = 1          Positive-definite scalar advection
+#   gwd_opt = 1                 Gravity wave drag
+#   epssm = 0.5                 Time off-centering for sound waves
+#
+# km_opt alternatives:
+#   1 = constant, 2 = 3D TKE, 3 = 3D Smagorinsky, 4 = 2D Smagorinsky
+# damp_opt alternatives:
+#   1 = increased diffusion, 2 = Rayleigh relaxation, 3 = gravity-wave damping
+# =============================================================================
+
+# [dynamics]
+# diff_opt = 2                            # Full diffusion
+# km_opt = 5                              # SMS-3DTKE
+
+# =============================================================================
+# Namelist overrides -- escape hatch for arbitrary WRF namelist parameters.
+# Keys are WRF namelist section names (&time_control, &domains, &physics, etc.).
+# Use this for rare/advanced options not covered by [physics] or [dynamics].
+# Per-domain arrays with length == domain count in [grid] are automatically
+# sliced when running a domain subset.
+# =============================================================================
+
+# [namelist_overrides.physics]
+# topo_wind = [0, 1, 1, 2, 2, 2]         # Topographic correction for surface winds
+# do_radar_ref = 1                        # Compute simulated radar reflectivity
+
+# [namelist_overrides.domains]
+# use_adaptive_time_step = false           # Disable adaptive time stepping
+
+# [namelist_overrides.fdda]
+# grid_fdda = 1                            # Enable grid nudging (FDDA)
+
+# =============================================================================
+# Sentry error tracking -- optional. Uncomment to enable error reporting.
+# =============================================================================
+
+# [sentry]
+# dsn = ""                                 # Sentry DSN (Data Source Name) URL
+# tags = {task = 'wrf run'}                # Tags attached to Sentry events
+
+# =============================================================================
+# ndown (one-way nesting) -- optional. Run a child domain using output from a
+# prior coarser WRF run as boundary conditions. Requires a single non-domain-1
+# domain (e.g. domains = [3]). The [ndown.input] section specifies the rclone
+# remote where the prior parent wrfout files are stored.
+# =============================================================================
+
+# [ndown]
 # [ndown.input]
 # type = 's3'
 # provider = 'Mega'
 # endpoint = 'https://s3.ca-west-1.s4.mega.io'
 # access_key_id = ''
 # secret_access_key = ''
-# path = '/wrf-1k/output/d03'
+# path = '/wrf-1k/output/d03'             # Path to prior parent-domain wrfout files
 
-[remote] # This must exist
-[remote.era5]
+# =============================================================================
+# Remote storage -- rclone configuration for ERA5 downloads and output uploads.
+# Both sections use rclone config syntax (type, provider, endpoint, credentials).
+# =============================================================================
+
+[remote]
+
+[remote.era5]                              # Source for ERA5 boundary condition data
 type = 's3'
 provider = 'Mega'
 endpoint = 'https://s3.ca-west-1.s4.mega.io'
@@ -55,7 +195,7 @@ access_key_id = ''
 secret_access_key = ''
 path = '/data/ncar/era5/'
 
-[remote.output] # This can be commented out if you only want to keep the files where it's been mounted in the docker-compose.yml file.
+[remote.output]                            # Destination for WRF output uploads
 type = 's3'
 provider = 'Mega'
 endpoint = 'https://s3.ca-west-1.s4.mega.io'

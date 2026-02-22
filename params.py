@@ -9,6 +9,9 @@ import tomllib
 import os
 import pathlib
 
+from defaults import GEOGRID_ARRAY_FIELDS as geogrid_array_fields
+from defaults import GEOGRID_SINGLE_FIELDS as geogrid_single_fields
+
 ############################################
 ### Read params file
 
@@ -77,23 +80,15 @@ metgrid_exe = wps_path.joinpath('metgrid.exe')
 ###########################################
 ### WPS
 
-src_wps_nml_path = data_path.joinpath('namelists/namelist.wps')
 wps_nml_path = data_path.joinpath('namelist.wps')
 
 wps_date_format = '%Y-%m-%d_%H:%M:%S'
 
 outfile_format = '{prefix}_d{domain:02}_{date}.nc'
 
-geogrid_array_fields = ('parent_id', 'parent_grid_ratio', 'i_parent_start', 'j_parent_start', 'e_we', 'e_sn', 'geog_data_res')
-
-geogrid_single_fields = ('dx', 'dy', 'map_proj', 'ref_lat', 'ref_lon', 'stand_lon')
-
-domain_array_fields = ('parent_id', 'parent_grid_ratio', 'i_parent_start', 'j_parent_start', 'e_we', 'e_sn', 'geog_data_res', 'e_vert', 'parent_time_step_ratio')
-
 ########################################
 ### WRF
 
-src_wrf_nml_path = data_path.joinpath('namelists/namelist.input')
 wrf_nml_path = data_path.joinpath('namelist.input')
 
 history_outname = "wrfout_d<domain>_<date>.nc"

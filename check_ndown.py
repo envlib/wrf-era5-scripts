@@ -6,9 +6,9 @@ Created on Thu Oct 23 15:28:14 2025
 @author: mike
 """
 import copy
-import f90nml
 
 import params
+import utils
 
 
 ############################################################
@@ -34,9 +34,8 @@ def check_ndown_params(domains):
 
                 domain = domains[0]
 
-                wps_nml = f90nml.read(params.src_wps_nml_path)
-                wps_domains = wps_nml['geogrid']
-                parent_ids = wps_domains['parent_id']
+                domain_config = params.file['grid']
+                parent_ids = utils.to_list(domain_config['parent_id'])
                 parent_id = parent_ids[domain - 1]
 
                 domains_init = [parent_id, domain]
@@ -44,80 +43,3 @@ def check_ndown_params(domains):
                 raise ValueError("If ndown inputs are passed, then domains should be a list with a single domain integer that isn't domain 1.")
 
     return ndown_check, domains_init
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
