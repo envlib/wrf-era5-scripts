@@ -10,13 +10,30 @@ Automated pipeline to run the WRF (Weather Research and Forecasting) model using
 ## Quick Start
 
 ```bash
-cp parameters_example.toml parameters.toml
 # Edit parameters.toml — at minimum fill in [domains], [time_control], and [remote] credentials
+cp parameters_example.toml parameters.toml
+
+# Edit the docker-compose.yml to map the local WPS_GEOG path
 docker-compose up -d      # Run and detach from process 
 docker-compose logs -f    # Look at the logs go!
 
 # Once everything has finished/failed you need to clean up the docker-compose instance
 docker-compose down
+```
+## docker-compose.yml
+### WPS_GEOG path
+The local WPS_GEOG path must be mapped to /WPS_GEOG in the docker image.
+It should be something like this:
+```
+- /local/path/WPS_GEOG:/WPS_GEOG
+```
+The first part is the local path then the docker image path (with a colon in between)
+
+### Mount the data directory
+Internally, WRF in the docker image runs all processes in the /data path (in the docker image). The user can mount this path to their local drive to see the processes and data.
+
+```
+- /local/path/test_data:/data
 ```
 
 ## Configuration
