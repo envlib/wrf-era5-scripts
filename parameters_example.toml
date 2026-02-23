@@ -1,9 +1,10 @@
 # Number of MPI processes for wrf.exe (via mpirun -n)
+# Don't use any more than 24 cores. Efficiency drops significantly past 24 cores.
 n_cores = 8
 
 # Which domains to run (subset of those defined in [grid]). Comment out to run all.
 # Parent/child nesting must be preserved (e.g. [1,2] or [3,4] but not [1,3] if 3's parent is 2).
-domains = [1, 2]
+# domains = [1, 2]
 
 # Filter wrfout variables to reduce file size. Comment out to retain all variables.
 # Coordinate variables (XLAT, XLONG, Times, XTIME) are always included automatically.
@@ -27,13 +28,13 @@ domains = [1, 2]
 # =============================================================================
 
 [time_control]
-start_date = "1990-07-02 00:00:00"     # Simulation start (format: "YYYY-MM-DD HH:MM:SS")
-# end_date = "1990-07-02 06:00:00"     # Simulation end -- use either end_date or duration_hours
+start_date = "1990-07-02 00:00:00"      # Simulation start (format: "YYYY-MM-DD HH:MM:SS")
+# end_date = "1990-07-02 06:00:00"      # Simulation end -- use either end_date or duration_hours
 duration_hours = 48                     # Simulation length in hours (alternative to end_date)
 interval_hours = 3                      # Boundary condition update interval in hours (this is the ERA5 input frequency)
 
 [time_control.history_file]
-interval_hours = [24, 1, 1, 1, 1, 1]   # wrfout output interval per domain (hours). Array must match domain count in [grid]. Must be integers.
+interval_hours = [24, 1, 1, 1, 1, 1]    # wrfout output interval per domain (hours). Array must match domain count in [grid]. Must be integers.
 begin_hours = 0                         # Hours after start_date before first wrfout output (0 = immediate)
 
 [time_control.summary_file]
