@@ -106,16 +106,32 @@ class TestSetNmlParams:
         # Default preserved
         assert wrf['dynamics']['hybrid_opt'] == 2
 
-    def test_namelist_overrides_escape_hatch(self, mock_params, tmp_path):
-        """[namelist_overrides.physics] injects arbitrary keys."""
-        mock_params['namelist_overrides'] = {
-            'physics': {'topo_wind': [0, 1, 2]},
-        }
+    def test_physics_extra_keys(self, mock_params, tmp_path):
+        """[physics] accepts arbitrary WRF &physics keys like topo_wind."""
+        mock_params['physics'] = {'topo_wind': [0, 1, 2]}
 
         set_nml_params()
 
         wrf = f90nml.read(tmp_path / 'namelist.input')
         assert wrf['physics']['topo_wind'] == [0, 1, 2]
+
+    def test_domains_passthrough(self, mock_params, tmp_path):
+        """Unknown keys in [domains] pass through to WRF &domains."""
+        mock_params['domains']['use_adaptive_time_step'] = False
+
+        set_nml_params()
+
+        wrf = f90nml.read(tmp_path / 'namelist.input')
+        assert wrf['domains']['use_adaptive_time_step'] is False
+
+    def test_fdda_section(self, mock_params, tmp_path):
+        """[fdda] keys pass directly to WRF &fdda."""
+        mock_params['fdda'] = {'grid_fdda': 1}
+
+        set_nml_params()
+
+        wrf = f90nml.read(tmp_path / 'namelist.input')
+        assert wrf['fdda']['grid_fdda'] == 1
 
     def test_summary_and_zlevel_output(self, mock_params, tmp_path):
         """Enable both summary_file and z_level_file."""

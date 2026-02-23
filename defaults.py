@@ -188,3 +188,21 @@ DYNAMICS_PER_DOMAIN_FIELDS = {
     'non_hydrostatic', 'moist_adv_opt', 'scalar_adv_opt',
     'gwd_opt', 'epssm',
 }
+
+# ============================================================
+# Pipeline Key Sets
+# ============================================================
+
+# Keys in [domains] consumed by the pipeline (not passed to WRF &domains)
+DOMAINS_PIPELINE_KEYS = (
+    {'run', 'truelat1', 'truelat2', 'e_vert', 'p_top_requested', 'parent_time_step_ratio'}
+    | set(GEOGRID_ARRAY_FIELDS)
+    | set(GEOGRID_SINGLE_FIELDS)
+    | set(GEOGRID_OPTIONAL_DEFAULTS)
+)
+
+# Keys in [time_control] consumed by the pipeline (not passed to WRF &time_control)
+TIME_CONTROL_PIPELINE_KEYS = {
+    'start_date', 'end_date', 'duration_hours', 'interval_hours',
+    'history_file', 'summary_file', 'z_level_file',
+}

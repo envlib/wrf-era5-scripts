@@ -48,7 +48,7 @@ if 'domains' in os.environ:
     else:
         raise ValueError('domains env variable should be either an int or a string of ints with commas separating them.')
 
-    file['domains'] = domains
+    file.setdefault('domains', {})['run'] = domains
 
 if 'n_cores' in os.environ:
     file['n_cores'] = int(os.environ['n_cores'])
@@ -65,6 +65,8 @@ run_path = data_path.joinpath('run')
 
 is_sentry = 'sentry' in file
 
+if not data_path.exists():
+    data_path.mkdir(exist_ok=True)
 
 
 ##############################################

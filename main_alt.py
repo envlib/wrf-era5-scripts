@@ -57,8 +57,8 @@ print(f"-- start time: {start_time.format('YYYY-MM-DD HH:mm:ss')}")
 # print('-- Downloading namelists...')
 # dl_check = dl_nml_domain()
 
-if 'domains' in params.file:
-    domains = params.file['domains']
+if 'run' in params.file.get('domains', {}):
+    domains = params.file['domains']['run']
     if isinstance(domains, int):
         domains = [domains]
     elif isinstance(domains, list):

@@ -1,16 +1,41 @@
+import atexit
 import shutil
 import pathlib
+import tempfile
 
 import pytest
 
 # ── Bootstrap: ensure parameters.toml exists so `import params` succeeds ──
+# If the current parameters.toml targets Docker (no [no_docker] section),
+# params.py tries to mkdir /data at import time which fails outside Docker.
+# Temporarily inject a [no_docker] section, then restore the original file.
 _project_root = pathlib.Path(__file__).resolve().parent.parent
 _toml = _project_root / "parameters.toml"
 _example = _project_root / "parameters_example.toml"
+_original_text = None
+
 if not _toml.exists() and _example.exists():
     shutil.copy(_example, _toml)
 
+_toml_text = _toml.read_text()
+_has_no_docker = any(line.strip().startswith('[no_docker]') for line in _toml_text.splitlines())
+if not _has_no_docker:
+    _original_text = _toml_text
+    _test_dir = tempfile.mkdtemp(prefix='wrf_test_')
+    _no_docker_block = (
+        f'[no_docker]\n'
+        f"wps_path = '{_test_dir}'\n"
+        f"wrf_path = '{_test_dir}'\n"
+        f"data_path = '{_test_dir}'\n"
+        f"geog_data_path = '{_test_dir}'\n"
+    )
+    _toml.write_text(_no_docker_block + '\n' + _toml_text)
+
 import params  # noqa: E402
+
+# Restore original parameters.toml after import
+if _original_text is not None:
+    _toml.write_text(_original_text)
 
 
 def _base_toml():
@@ -31,7 +56,7 @@ def _base_toml():
                 'output': False,
             },
         },
-        'grid': {
+        'domains': {
             'dx': 27000,
             'dy': 27000,
             'map_proj': 'lambert',

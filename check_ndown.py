@@ -34,7 +34,7 @@ def check_ndown_params(domains):
 
                 domain = domains[0]
 
-                domain_config = params.file['grid']
+                domain_config = params.file['domains']
                 parent_ids = utils.to_list(domain_config['parent_id'])
                 parent_id = parent_ids[domain - 1]
 

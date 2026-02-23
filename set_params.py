@@ -5,6 +5,8 @@ Created on Mon Sep 22 17:21:47 2025
 
 @author: mike
 """
+from collections import OrderedDict
+
 import f90nml
 import subprocess
 import pendulum
@@ -16,6 +18,16 @@ import defaults
 
 ################################################
 ### Helper
+
+
+def apply_overrides(target, overrides, domains, old_n_domains):
+    """Merge TOML overrides into a WRF namelist section dict, slicing per-domain arrays."""
+    n_domains = len(domains)
+    for k, v in overrides.items():
+        if isinstance(v, list) and len(v) == old_n_domains and old_n_domains != n_domains:
+            target[k] = [v[d - 1] for d in domains]
+        else:
+            target[k] = v
 
 
 def broadcast_field(value, n_domains, domains, old_n_domains):
@@ -64,12 +76,12 @@ def check_nml_params(domains):
         raise ValueError(f'metgrid.exe does not exist: {params.metgrid_exe}')
 
     ##############################################
-    ### Validate domain config from TOML [grid] section
+    ### Validate domain config from TOML [domains] section
 
-    if 'grid' not in params.file:
-        raise ValueError('[grid] section is missing from parameters.toml.')
+    if 'domains' not in params.file:
+        raise ValueError('[domains] section is missing from parameters.toml.')
 
-    domain_config = params.file['grid']
+    domain_config = params.file['domains']
 
     parent_ids = utils.to_list(domain_config['parent_id'])
 
@@ -77,7 +89,7 @@ def check_nml_params(domains):
 
     for f in params.geogrid_array_fields:
         if f not in domain_config:
-            raise ValueError(f'The field {f} is missing from [grid] in parameters.toml.')
+            raise ValueError(f'The field {f} is missing from [domains] in parameters.toml.')
 
         v = utils.to_list(domain_config[f])
 
@@ -91,7 +103,7 @@ def check_nml_params(domains):
 
     for f in params.geogrid_single_fields:
         if f not in domain_config:
-            raise ValueError(f'The field {f} is missing from [grid] in parameters.toml.')
+            raise ValueError(f'The field {f} is missing from [domains] in parameters.toml.')
 
         v = domain_config[f]
 
@@ -120,9 +132,9 @@ def set_nml_params(domains=None):
     Build WPS and WRF namelists from scratch using defaults + TOML overrides.
     """
     #########################################
-    ### Read domain geometry from TOML [grid] section
+    ### Read domain geometry from TOML [domains] section
 
-    grid_config = params.file['grid']
+    grid_config = params.file['domains']
     parent_ids = utils.to_list(grid_config['parent_id'])
     old_n_domains = len(parent_ids)
 
@@ -242,30 +254,27 @@ def set_nml_params(domains=None):
     fdda = {}
     grib2 = {}
 
-    ## apply namelist_overrides escape hatch
-    extra_sections = {}
-    if 'namelist_overrides' in params.file:
-        known = {
-            'time_control': wrf_tc,
-            'domains': wrf_dom,
-            'physics': physics,
-            'dynamics': dynamics,
-            'bdy_control': bdy_control,
-            'diags': diags,
-            'namelist_quilt': namelist_quilt,
-            'fdda': fdda,
-            'grib2': grib2,
-        }
-        for section_name, overrides in params.file['namelist_overrides'].items():
-            target = known.get(section_name)
-            if target is None:
-                target = {}
-                extra_sections[section_name] = target
-            for k, v in overrides.items():
-                if isinstance(v, list) and len(v) == old_n_domains and old_n_domains != n_domains:
-                    target[k] = [v[d - 1] for d in domains]
-                else:
-                    target[k] = v
+    ## Passthrough: unknown [domains] keys → WRF &domains
+    domain_overrides = {k: v for k, v in params.file['domains'].items()
+                        if k not in defaults.DOMAINS_PIPELINE_KEYS}
+    apply_overrides(wrf_dom, domain_overrides, domains, old_n_domains)
+
+    ## Passthrough: unknown [time_control] keys → WRF &time_control
+    tc_overrides = {k: v for k, v in params.file['time_control'].items()
+                    if k not in defaults.TIME_CONTROL_PIPELINE_KEYS}
+    apply_overrides(wrf_tc, tc_overrides, domains, old_n_domains)
+
+    ## Direct WRF namelist sections from TOML
+    override_sections = {
+        'fdda': fdda,
+        'bdy_control': bdy_control,
+        'grib2': grib2,
+        'namelist_quilt': namelist_quilt,
+        'diags': diags,
+    }
+    for section_name, target in override_sections.items():
+        if section_name in params.file:
+            apply_overrides(target, params.file[section_name], domains, old_n_domains)
 
     #########################################
     ### TIME / OUTPUT LOGIC
@@ -409,29 +418,26 @@ def set_nml_params(domains=None):
     #############################################
     ### ASSEMBLE AND WRITE NAMELISTS
 
-    wps_nml = f90nml.Namelist({
-        'share': wps_share,
-        'geogrid': wps_geogrid,
-        'ungrib': wps_ungrib,
-        'metgrid': wps_metgrid,
-    })
+    # OrderedDict preserves section order; f90nml.Namelist sorts plain dicts
+    # alphabetically, which breaks WPS (geogrid reads &share then &geogrid sequentially).
+    wps_nml = f90nml.Namelist(OrderedDict([
+        ('share', wps_share),
+        ('geogrid', wps_geogrid),
+        ('ungrib', wps_ungrib),
+        ('metgrid', wps_metgrid),
+    ]))
 
-    wrf_sections = {
-        'time_control': wrf_tc,
-        'domains': wrf_dom,
-        'physics': physics,
-        'fdda': fdda,
-        'dynamics': dynamics,
-        'bdy_control': bdy_control,
-        'diags': diags,
-        'grib2': grib2,
-        'namelist_quilt': namelist_quilt,
-    }
-
-    # Add any extra sections from namelist_overrides
-    for section_name, section_dict in extra_sections.items():
-        if section_name not in wrf_sections:
-            wrf_sections[section_name] = section_dict
+    wrf_sections = OrderedDict([
+        ('time_control', wrf_tc),
+        ('domains', wrf_dom),
+        ('physics', physics),
+        ('fdda', fdda),
+        ('dynamics', dynamics),
+        ('bdy_control', bdy_control),
+        ('diags', diags),
+        ('grib2', grib2),
+        ('namelist_quilt', namelist_quilt),
+    ])
 
     wrf_nml = f90nml.Namelist(wrf_sections)
 
