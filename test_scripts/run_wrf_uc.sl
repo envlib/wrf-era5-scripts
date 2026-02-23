@@ -19,11 +19,11 @@
 #   1. Pull the SIF image:
 #        module load Apptainer
 #        apptainer pull docker://mullenkamp/wrf-era5-runs:2.0
-#        mv wrf-era5-runs_2.0.sif /nesi/nobackup/$PROJECT_CODE/$USER/
+#        mv wrf-era5-runs_2.0.sif /scratch/projects/$PROJECT_CODE/
 #
 #   2. Download WPS_GEOG static data:
 #        See https://www2.mmm.ucar.edu/wrf/users/download/get_sources_wps_geog.html
-#        Extract to /nesi/nobackup/$PROJECT_CODE/WPS_GEOG/
+#        Extract to /scratch/projects/$PROJECT_CODE/WPS_GEOG/
 #
 #   3. Create parameters.toml from parameters_example.toml with your settings.
 #      Do NOT include a [no_docker] section — the container uses Docker paths.
