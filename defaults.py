@@ -125,6 +125,23 @@ DYNAMICS_DEFAULTS = {
 }
 
 # ============================================================
+# Output Variable Filtering
+# ============================================================
+
+# Variables auto-included when output_variables filtering is active
+COORD_VARS_2D = {'Times', 'XLAT', 'XLONG', 'XTIME'}
+
+COORD_VARS_3D = {'P', 'PB', 'PH', 'PHB', 'HGT'}
+
+# WRF variables with a vertical (eta-level) dimension
+VARS_3D = {
+    'T', 'U', 'V', 'W',
+    'P', 'PB', 'PH', 'PHB',
+    'QVAPOR', 'QCLOUD', 'QRAIN', 'QICE', 'QSNOW', 'QGRAUP', 'QHAIL',
+    'TKE_PBL',
+}
+
+# ============================================================
 # Field Classification
 # ============================================================
 

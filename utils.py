@@ -15,6 +15,7 @@ import pendulum
 import pyproj
 
 import params
+import defaults
 
 ############################################
 ### Parameters
@@ -150,11 +151,24 @@ def rename_files(files, rename_dict):
     return new_files
 
 
+def resolve_output_variables(variables):
+    """
+    Expand user variable list with required coordinate/auxiliary variables.
+    Always adds 2D coordinates. Adds 3D auxiliaries if any 3D variable is present.
+    """
+    var_set = set(variables)
+    var_set.update(defaults.COORD_VARS_2D)
+    if var_set & defaults.VARS_3D:
+        var_set.update(defaults.COORD_VARS_3D)
+    return sorted(var_set)
+
+
 def filter_variables(files, variables):
     """
 
     """
-    vars_str = ','.join(variables)
+    resolved = resolve_output_variables(variables)
+    vars_str = ','.join(resolved)
     for file_path in files:
         orig_path, orig_file_name = os.path.split(file_path)
         if 'wrfout' in orig_file_name:
