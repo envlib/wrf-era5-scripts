@@ -26,8 +26,8 @@
 #   Task 11: 2020-01-23 00:00:00
 #
 # Usage:
-#   sbatch test_scripts/run_wrf_nesi_array.sl
-#   sbatch --array=0-5 test_scripts/run_wrf_nesi_array.sl    # override range
+#   sbatch slurm_scripts/run_wrf_nesi_array.sl
+#   sbatch --array=0-5 slurm_scripts/run_wrf_nesi_array.sl    # override range
 #
 # Prerequisites: same as run_wrf_nesi.sl (SIF image, WPS_GEOG, parameters.toml)
 # =============================================================================
