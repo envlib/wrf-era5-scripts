@@ -1,5 +1,6 @@
 #!/bin/bash -e
 #SBATCH --job-name=wrf-era5
+#SBATCH --nodes=1                     # node count
 #SBATCH --account=nesi99999           # Replace with your NeSI project code
 #SBATCH --partition=milan             # Or: large, bigmem, hgx — check nesi.org.nz
 #SBATCH --time=24:00:00
@@ -92,7 +93,7 @@ BIND_ARGS="${BIND_ARGS},${DATA_DIR}:/data"
 
 # ---- Build environment variable overrides -----------------------------------
 
-ENV_ARGS="n_cores=${SLURM_NTASKS}"
+ENV_ARGS="n_cores=${SLURM_NTASKS},HYDRA_LAUNCHER=fork"
 
 if [ -n "${START_DATE:-}" ]; then
     ENV_ARGS="${ENV_ARGS},start_date=${START_DATE}"

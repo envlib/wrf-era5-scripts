@@ -1,5 +1,6 @@
 #!/bin/bash -e
 #SBATCH --job-name=wrf-era5
+#SBATCH --nodes=1                     # node count
 #SBATCH --partition=milan             # Or: large, bigmem, hgx — check nesi.org.nz
 #SBATCH --time=6:00:00
 #SBATCH --ntasks=24                    # MPI ranks for wrf.exe (maps to n_cores)
@@ -91,7 +92,7 @@ BIND_ARGS="${BIND_ARGS},${DATA_DIR}:/data"
 
 # ---- Build environment variable overrides -----------------------------------
 
-ENV_ARGS="n_cores=${SLURM_NTASKS}"
+ENV_ARGS="n_cores=${SLURM_NTASKS},HYDRA_LAUNCHER=fork"
 
 if [ -n "${START_DATE:-}" ]; then
     ENV_ARGS="${ENV_ARGS},start_date=${START_DATE}"
