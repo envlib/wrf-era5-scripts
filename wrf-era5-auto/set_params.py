@@ -295,6 +295,28 @@ def set_nml_params(domains=None):
     wps_share['interval_seconds'] = interval_hours * 60 * 60
     wrf_tc['interval_seconds'] = interval_hours * 60 * 60
 
+    ## FDDA defaults: apply per-domain where grid_fdda > 0
+    if 'grid_fdda' in fdda:
+        grid_fdda = broadcast_field(fdda['grid_fdda'], n_domains, domains, old_n_domains)
+        fdda['grid_fdda'] = grid_fdda
+        nudge_mask = [v > 0 for v in grid_fdda]
+
+        for key, default_val in defaults.FDDA_NUDGING_DEFAULTS.items():
+            if key not in fdda:
+                fdda[key] = [default_val if on else 0 for on in nudge_mask]
+
+        # Set runtime values for gfdda_interval_m and gfdda_end_h if not user-specified
+        if 'gfdda_interval_m' not in params.file.get('fdda', {}):
+            fdda['gfdda_interval_m'] = [interval_hours * 60 if on else 0 for on in nudge_mask]
+        if 'gfdda_end_h' not in params.file.get('fdda', {}):
+            duration_hours = int((end_date - start_date).total_hours())
+            fdda['gfdda_end_h'] = [duration_hours if on else 0 for on in nudge_mask]
+
+        # Broadcast any remaining user-specified per-domain fdda fields
+        for field in defaults.FDDA_PER_DOMAIN_FIELDS:
+            if field in fdda and field != 'grid_fdda':
+                fdda[field] = broadcast_field(fdda[field], n_domains, domains, old_n_domains)
+
     # History intervals - list per domain (was dict keyed by domain number)
     history_intervals_raw = params.file['time_control']['history_file']['interval_hours']
     history_intervals = [int(hi * 60) for hi in utils.to_list(history_intervals_raw)]

@@ -142,12 +142,30 @@ feedback = 0                            # One-way (0) or two-way (1) nesting
 # km_opt = 5                              # SMS-3DTKE
 
 # =============================================================================
-# FDDA (grid/obs nudging) -- optional. Keys pass directly to WRF &fdda.
+# FDDA (grid nudging) -- optional. Keys pass directly to WRF &fdda.
 # Per-domain arrays are sliced when running a domain subset.
+#
+# Setting grid_fdda > 0 for a domain enables nudging and auto-populates
+# sensible defaults for that domain. Domains with grid_fdda = 0 get zeros.
+# Any key you set explicitly overrides the default.
+#
+# Auto-populated defaults (per-domain, only where grid_fdda > 0):
+#   gfdda_interval_m = interval_hours * 60   Derived from ERA5 input frequency
+#   gfdda_end_h = simulation duration         Nudge for entire run
+#   fgdt = 0                                  Apply every time step
+#   if_no_pbl_nudging_uv = 1                  Don't nudge wind in PBL
+#   if_no_pbl_nudging_t = 1                   Don't nudge temperature in PBL
+#   if_no_pbl_nudging_ph = 1                  Don't nudge geopotential in PBL
+#   if_no_pbl_nudging_q = 1                   Don't nudge moisture in PBL
+#   guv = 0.0003                              Nudging coefficient for wind
+#   gt = 0.0003                               Nudging coefficient for temperature
+#   gq = 0.0003                               Nudging coefficient for moisture
+#   if_ramping = 0                            No ramp-down near end
 # =============================================================================
 
 # [fdda]
-# grid_fdda = 1                            # Enable grid nudging (FDDA)
+# grid_fdda = [1, 1, 0, 0, 0, 0]            # Enable nudging on outer domains only (array per domain)
+# guv = 0.0001                               # Override default nudging coefficient for wind
 
 # =============================================================================
 # Boundary control overrides -- optional. Keys pass directly to WRF &bdy_control.
