@@ -160,7 +160,6 @@ feedback = 0                            # One-way (0) or two-way (1) nesting
 #   guv = 0.0003                              Nudging coefficient for wind
 #   gt = 0.0003                               Nudging coefficient for temperature
 #   gq = 0.0003                               Nudging coefficient for moisture
-#   if_ramping = 0                            No ramp-down near end
 # =============================================================================
 
 # [fdda]

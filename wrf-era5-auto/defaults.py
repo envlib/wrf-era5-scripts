@@ -128,7 +128,8 @@ DYNAMICS_DEFAULTS = {
 # WRF FDDA Defaults -- Applied per-domain where grid_fdda > 0
 # ============================================================
 
-FDDA_NUDGING_DEFAULTS = {
+# Per-domain defaults (masked by grid_fdda: non-zero only where nudging is on)
+FDDA_PER_DOMAIN_DEFAULTS = {
     'gfdda_end_h': 0,            # Populated at runtime from simulation duration
     'gfdda_interval_m': 0,       # Populated at runtime from interval_hours
     'fgdt': 0,                   # Apply nudging every time step
@@ -138,16 +139,15 @@ FDDA_NUDGING_DEFAULTS = {
     'if_no_pbl_nudging_q': 1,    # Don't nudge moisture in PBL
     'guv': 0.0003,               # Nudging coefficient for wind (3e-4 s^-1)
     'gt': 0.0003,                # Nudging coefficient for temperature
-    'gq': 0.0003,                # Nudging coefficient for moisture
-    'if_ramping': 0,             # No ramp-down near end
+    'gq': 0.00001,               # Nudging coefficient for moisture
 }
 
-# Per-domain fields in &fdda that need masking by grid_fdda
+# Per-domain fields in &fdda that need broadcasting/masking by grid_fdda
 FDDA_PER_DOMAIN_FIELDS = {
     'grid_fdda', 'gfdda_end_h', 'gfdda_interval_m', 'fgdt',
     'if_no_pbl_nudging_uv', 'if_no_pbl_nudging_t',
     'if_no_pbl_nudging_ph', 'if_no_pbl_nudging_q',
-    'guv', 'gt', 'gq', 'if_ramping',
+    'guv', 'gt', 'gq',
 }
 
 # ============================================================

@@ -6,12 +6,12 @@ These scripts run the WRF-ERA5 pipeline inside an Apptainer container on HPC clu
 
 ### 1. SIF Image
 
-The pipeline runs inside an Apptainer (SIF) image converted from the Docker image `mullenkamp/wrf-era5-runs:2.0`.
+The pipeline runs inside an Apptainer (SIF) image converted from the Docker image `mullenkamp/wrf-era5-runs:2.1`.
 
 **Option A: Download the pre-built image (recommended)**
 
 ```bash
-wget -N https://b2.envlib.xyz/file/envlib/sif/wrf-era5-runs_2.0.sif
+wget -N https://b2.envlib.xyz/file/envlib/sif/wrf-era5-runs_2.1.sif
 ```
 
 **Option B: Build from Docker Hub**
@@ -20,25 +20,25 @@ If your HPC allows it, you can convert directly from Docker Hub:
 
 ```bash
 module load Apptainer
-apptainer pull docker://mullenkamp/wrf-era5-runs:2.0
+apptainer pull docker://mullenkamp/wrf-era5-runs:2.1
 ```
 
 Note: This may fail on some HPC systems due to memory or permission constraints during the squashfs build. If so, build locally and transfer:
 
 ```bash
 # On your local machine
-apptainer pull docker://mullenkamp/wrf-era5-runs:2.0
+apptainer pull docker://mullenkamp/wrf-era5-runs:2.1
 
 # Copy to HPC
-scp wrf-era5-runs_2.0.sif user@hpc:/path/to/scratch/
+scp wrf-era5-runs_2.1.sif user@hpc:/path/to/scratch/
 ```
 
 If you only have Docker locally (no Apptainer):
 
 ```bash
-docker pull mullenkamp/wrf-era5-runs:2.0
-docker save mullenkamp/wrf-era5-runs:2.0 -o wrf-era5-runs_2.0.tar
-apptainer build wrf-era5-runs_2.0.sif docker-archive://wrf-era5-runs_2.0.tar
+docker pull mullenkamp/wrf-era5-runs:2.1
+docker save mullenkamp/wrf-era5-runs:2.1 -o wrf-era5-runs_2.1.tar
+apptainer build wrf-era5-runs_2.1.sif docker-archive://wrf-era5-runs_2.1.tar
 ```
 
 ### 2. WPS_GEOG Static Data

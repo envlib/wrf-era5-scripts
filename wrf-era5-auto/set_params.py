@@ -295,15 +295,19 @@ def set_nml_params(domains=None):
     wps_share['interval_seconds'] = interval_hours * 60 * 60
     wrf_tc['interval_seconds'] = interval_hours * 60 * 60
 
-    ## FDDA defaults: apply per-domain where grid_fdda > 0
+    ## FDDA defaults: apply per-domain where grid_fdda > 0, scalars as-is
     if 'grid_fdda' in fdda:
         grid_fdda = broadcast_field(fdda['grid_fdda'], n_domains, domains, old_n_domains)
         fdda['grid_fdda'] = grid_fdda
         nudge_mask = [v > 0 for v in grid_fdda]
 
-        for key, default_val in defaults.FDDA_NUDGING_DEFAULTS.items():
+        # Per-domain defaults (masked by grid_fdda)
+        for key, default_val in defaults.FDDA_PER_DOMAIN_DEFAULTS.items():
             if key not in fdda:
                 fdda[key] = [default_val if on else 0 for on in nudge_mask]
+
+        # Scalar defaults
+        fdda.setdefault('gfdda_inname', 'wrffdda_d<domain>')
 
         # Set runtime values for gfdda_interval_m and gfdda_end_h if not user-specified
         if 'gfdda_interval_m' not in params.file.get('fdda', {}):

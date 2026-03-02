@@ -2,7 +2,7 @@
 #SBATCH --job-name=wrf-era5
 #SBATCH --nodes=1                     # node count
 #SBATCH --account=nesi99999           # Replace with your NeSI project code
-#SBATCH --partition=milan             # Or: large, bigmem, hgx — check nesi.org.nz
+#SBATCH --partition=genoa             # Or: large, bigmem, hgx — check nesi.org.nz
 #SBATCH --time=24:00:00
 #SBATCH --ntasks=8                    # MPI ranks for wrf.exe (maps to n_cores)
 #SBATCH --mem=32G
