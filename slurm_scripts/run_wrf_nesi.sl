@@ -39,7 +39,7 @@
 
 PROJECT_CODE="nesi99999"                                        # NeSI project code
 IMAGE_NAME="wrf-era5-runs"                                      # Docker/SIF image name
-IMAGE_VERSION="2.0"                                             # Docker/SIF image version
+IMAGE_VERSION="2.1"                                             # Docker/SIF image version
 SCRATCH="/nesi/nobackup/${PROJECT_CODE}/${USER}"                # Scratch/nobackup base
 SIF_PATH="${SCRATCH}/${IMAGE_NAME}_${IMAGE_VERSION}.sif"        # Apptainer SIF image
 WPS_GEOG_PATH="${SCRATCH}/WPS_GEOG"                             # Static geography data
