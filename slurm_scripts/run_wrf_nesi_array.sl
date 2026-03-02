@@ -35,8 +35,10 @@
 # ---- Configuration ----------------------------------------------------------
 
 PROJECT_CODE="nesi99999"                                        # NeSI project code
+IMAGE_NAME="wrf-era5-runs"                                      # Docker/SIF image name
+IMAGE_VERSION="2.0"                                             # Docker/SIF image version
 SCRATCH="/nesi/nobackup/${PROJECT_CODE}/${USER}"                # Scratch/nobackup base
-SIF_PATH="${SCRATCH}/wrf-era5-runs_2.0.sif"                     # Apptainer SIF image
+SIF_PATH="${SCRATCH}/${IMAGE_NAME}_${IMAGE_VERSION}.sif"        # Apptainer SIF image
 WPS_GEOG_PATH="${SCRATCH}/WPS_GEOG"                             # Static geography data
 PARAMS_FILE="$(pwd)/parameters.toml"                            # Path to parameters.toml
 DATA_DIR="${SCRATCH}/wrf_runs/${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}"  # Per-task working directory
@@ -70,7 +72,7 @@ module load Apptainer
 
 if [ ! -f "${SIF_PATH}" ]; then
     echo "ERROR: SIF image not found at ${SIF_PATH}"
-    echo "Pull it first: apptainer pull docker://mullenkamp/wrf-era5-runs:2.0"
+    echo "Pull it first: apptainer pull docker://mullenkamp/${IMAGE_NAME}:${IMAGE_VERSION}"
     exit 1
 fi
 
@@ -97,14 +99,16 @@ BIND_ARGS="${BIND_ARGS},${DATA_DIR}:/data"
 
 # ---- Build environment variable overrides -----------------------------------
 
-ENV_ARGS="n_cores=${SLURM_NTASKS},HYDRA_LAUNCHER=fork"
-ENV_ARGS="${ENV_ARGS},start_date=${START_DATE}"
+ENV_ARGS=(--env "n_cores=${SLURM_NTASKS}")
+ENV_ARGS+=(--env "HYDRA_LAUNCHER=fork")
+ENV_ARGS+=(--env "HYDRA_IFACE=lo")
+ENV_ARGS+=(--env "start_date=${START_DATE}")
 
 if [ -n "${DOMAINS:-}" ]; then
-    ENV_ARGS="${ENV_ARGS},domains=${DOMAINS}"
+    ENV_ARGS+=(--env "domains=${DOMAINS}")
 fi
 if [ -n "${DURATION_HOURS:-}" ]; then
-    ENV_ARGS="${ENV_ARGS},duration_hours=${DURATION_HOURS}"
+    ENV_ARGS+=(--env "duration_hours=${DURATION_HOURS}")
 fi
 
 # ---- Run the pipeline -------------------------------------------------------
@@ -116,9 +120,11 @@ echo "Start date: ${START_DATE}"
 echo "Data dir: ${DATA_DIR}"
 
 apptainer exec \
+    --cleanenv \
+    --contain \
     --writable-tmpfs \
     --bind "${BIND_ARGS}" \
-    --env "${ENV_ARGS}" \
+    "${ENV_ARGS[@]}" \
     "${SIF_PATH}" \
     bash -c "cd /app && uv run python -u main.py"
 

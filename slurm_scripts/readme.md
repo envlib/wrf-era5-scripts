@@ -6,12 +6,12 @@ These scripts run the WRF-ERA5 pipeline inside an Apptainer container on HPC clu
 
 ### 1. SIF Image
 
-The pipeline runs inside an Apptainer (SIF) image converted from the Docker image `mullenkamp/wrf-era5-runs:2.1`.
+The pipeline runs inside an Apptainer (SIF) image converted from the Docker image `mullenkamp/wrf-era5-runs`. Each script has `IMAGE_NAME` and `IMAGE_VERSION` variables at the top of its Configuration section — update `IMAGE_VERSION` when switching to a new release.
 
 **Option A: Download the pre-built image (recommended)**
 
 ```bash
-wget -N https://b2.envlib.xyz/file/envlib/sif/wrf-era5-runs_2.1.sif
+wget -N https://b2.envlib.xyz/file/envlib/sif/wrf-era5-runs_<VERSION>.sif
 ```
 
 **Option B: Build from Docker Hub**
@@ -20,25 +20,25 @@ If your HPC allows it, you can convert directly from Docker Hub:
 
 ```bash
 module load Apptainer
-apptainer pull docker://mullenkamp/wrf-era5-runs:2.1
+apptainer pull docker://mullenkamp/wrf-era5-runs:<VERSION>
 ```
 
 Note: This may fail on some HPC systems due to memory or permission constraints during the squashfs build. If so, build locally and transfer:
 
 ```bash
 # On your local machine
-apptainer pull docker://mullenkamp/wrf-era5-runs:2.1
+apptainer pull docker://mullenkamp/wrf-era5-runs:<VERSION>
 
 # Copy to HPC
-scp wrf-era5-runs_2.1.sif user@hpc:/path/to/scratch/
+scp wrf-era5-runs_<VERSION>.sif user@hpc:/path/to/scratch/
 ```
 
 If you only have Docker locally (no Apptainer):
 
 ```bash
-docker pull mullenkamp/wrf-era5-runs:2.1
-docker save mullenkamp/wrf-era5-runs:2.1 -o wrf-era5-runs_2.1.tar
-apptainer build wrf-era5-runs_2.1.sif docker-archive://wrf-era5-runs_2.1.tar
+docker pull mullenkamp/wrf-era5-runs:<VERSION>
+docker save mullenkamp/wrf-era5-runs:<VERSION> -o wrf-era5-runs_<VERSION>.tar
+apptainer build wrf-era5-runs_<VERSION>.sif docker-archive://wrf-era5-runs_<VERSION>.tar
 ```
 
 ### 2. WPS_GEOG Static Data
@@ -131,7 +131,15 @@ WRF, WPS, Python, and all dependencies are baked into the SIF image -- no bind m
 Key flags:
 - **`--writable-tmpfs`** -- The pipeline creates a symlink inside `/WPS/geogrid/` for Noah-MP. Without this, the read-only SIF filesystem would block it.
 - **`HYDRA_LAUNCHER=fork`** -- MPICH inside the container detects Slurm environment variables and tries to use `srun`, which doesn't exist in the container. This forces MPICH's Hydra process manager to use `fork` instead.
+- **`HYDRA_IFACE=lo`** -- Forces MPICH to use the loopback interface for intra-container MPI communication, avoiding issues with host network interfaces (e.g. InfiniBand) that may not work inside the container.
 - **`n_cores=$SLURM_NTASKS`** -- Syncs the pipeline's MPI process count with the Slurm allocation.
+
+### Container isolation: `--contain` and `--cleanenv`
+
+All scripts use `--contain` and `--cleanenv` for robust MPI behaviour across HPC environments:
+
+- **`--contain`** -- Prevents Apptainer from applying admin-configured bind mounts. Some HPC sites (e.g. NeSI) configure Apptainer to inject host MPI libraries into containers (the "hybrid MPI" model for InfiniBand performance). This replaces the container's own MPI with the host's MPICH, which then tries to use Slurm's PMI for process management. Since PMI isn't accessible from inside the container, `mpirun` fails with `HYD_pmci_wait_for_completion`. `--contain` blocks these admin bind mounts while still honoring the explicit `--bind` flags defined in the script. HPCs that don't inject host MPI (e.g. University of Canterbury) are unaffected by this flag.
+- **`--cleanenv`** -- Strips all host environment variables from the container, preventing Slurm variables (`SLURM_*`, `PMI_*`) from leaking in and interfering with the container's MPI. Only variables explicitly passed via `--env` are set inside the container.
 
 Each job gets an isolated data directory (using `$SLURM_JOB_ID` or `$SLURM_ARRAY_JOB_ID_$SLURM_ARRAY_TASK_ID`), so multiple runs don't interfere with each other.
 

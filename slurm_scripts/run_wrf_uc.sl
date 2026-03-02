@@ -13,14 +13,14 @@
 # WRF-ERA5 Pipeline — Apptainer on NeSI
 #
 # Runs the full WRF-ERA5 pipeline (main.py) inside an Apptainer container
-# converted from the Docker image mullenkamp/wrf-era5-runs:2.0.
+# converted from the Docker image mullenkamp/wrf-era5-runs.
 #
 # Prerequisites (one-time setup from a login node):
 #
-#   1. Pull the SIF image:
+#   1. Pull the SIF image (update IMAGE_VERSION in Configuration to match):
 #        module load Apptainer
-#        apptainer pull docker://mullenkamp/wrf-era5-runs:2.0
-#        mv wrf-era5-runs_2.0.sif /scratch/projects/$PROJECT_CODE/
+#        apptainer pull docker://mullenkamp/wrf-era5-runs:<VERSION>
+#        mv wrf-era5-runs_<VERSION>.sif /scratch/projects/$PROJECT_CODE/
 #
 #   2. Download WPS_GEOG static data:
 #        See https://www2.mmm.ucar.edu/wrf/users/download/get_sources_wps_geog.html
@@ -36,9 +36,11 @@
 
 # ---- Configuration ----------------------------------------------------------
 
-PROJECT_CODE="rch043"                                        # NeSI project code
-SCRATCH="/scratch/projects/${PROJECT_CODE}/"                # Scratch/nobackup base
-SIF_PATH="${SCRATCH}/wrf-era5-runs_2.0.sif"                     # Apptainer SIF image
+PROJECT_CODE="rch043"                                           # UC project code
+IMAGE_NAME="wrf-era5-runs"                                      # Docker/SIF image name
+IMAGE_VERSION="2.0"                                             # Docker/SIF image version
+SCRATCH="/scratch/projects/${PROJECT_CODE}/"                    # Scratch base
+SIF_PATH="${SCRATCH}/${IMAGE_NAME}_${IMAGE_VERSION}.sif"        # Apptainer SIF image
 WPS_GEOG_PATH="${SCRATCH}/WPS_GEOG"                             # Static geography data
 PARAMS_FILE="$(pwd)/parameters.toml"                            # Path to parameters.toml
 DATA_DIR="${SCRATCH}/wrf_runs/${SLURM_JOB_ID}"                  # Per-job working directory
@@ -65,7 +67,7 @@ module load Apptainer
 
 if [ ! -f "${SIF_PATH}" ]; then
     echo "ERROR: SIF image not found at ${SIF_PATH}"
-    echo "Pull it first: apptainer pull docker://mullenkamp/wrf-era5-runs:2.0"
+    echo "Pull it first: apptainer pull docker://mullenkamp/${IMAGE_NAME}:${IMAGE_VERSION}"
     exit 1
 fi
 
@@ -92,19 +94,21 @@ BIND_ARGS="${BIND_ARGS},${DATA_DIR}:/data"
 
 # ---- Build environment variable overrides -----------------------------------
 
-ENV_ARGS="n_cores=${SLURM_NTASKS},HYDRA_LAUNCHER=fork"
+ENV_ARGS=(--env "n_cores=${SLURM_NTASKS}")
+ENV_ARGS+=(--env "HYDRA_LAUNCHER=fork")
+ENV_ARGS+=(--env "HYDRA_IFACE=lo")
 
 if [ -n "${START_DATE:-}" ]; then
-    ENV_ARGS="${ENV_ARGS},start_date=${START_DATE}"
+    ENV_ARGS+=(--env "start_date=${START_DATE}")
 fi
 if [ -n "${END_DATE:-}" ]; then
-    ENV_ARGS="${ENV_ARGS},end_date=${END_DATE}"
+    ENV_ARGS+=(--env "end_date=${END_DATE}")
 fi
 if [ -n "${DOMAINS:-}" ]; then
-    ENV_ARGS="${ENV_ARGS},domains=${DOMAINS}"
+    ENV_ARGS+=(--env "domains=${DOMAINS}")
 fi
 if [ -n "${DURATION_HOURS:-}" ]; then
-    ENV_ARGS="${ENV_ARGS},duration_hours=${DURATION_HOURS}"
+    ENV_ARGS+=(--env "duration_hours=${DURATION_HOURS}")
 fi
 
 # ---- Run the pipeline -------------------------------------------------------
@@ -115,9 +119,11 @@ echo "Cores: ${SLURM_NTASKS}"
 echo "Data dir: ${DATA_DIR}"
 
 apptainer exec \
+    --cleanenv \
+    --contain \
     --writable-tmpfs \
     --bind "${BIND_ARGS}" \
-    --env "${ENV_ARGS}" \
+    "${ENV_ARGS[@]}" \
     "${SIF_PATH}" \
     bash -c "cd /app && uv run python -u main.py"
 
