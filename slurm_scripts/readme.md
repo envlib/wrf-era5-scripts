@@ -151,6 +151,13 @@ scancel <job_id>          # Cancel a job
 scancel <array_job_id>    # Cancel all tasks in an array
 ```
 
+## Completed jobs
+
+```bash
+sacct -j <job_id> --format=JobID,MaxRSS,MaxVMSize,Elapsed  --units=G # List the peak RAM usage and elapsed time
+
+```
+
 Log files are written to the submission directory:
 - Single run: `wrf-era5_<job_id>.log`
 - Array: `wrf-era5_<array_job_id>_<task_id>.log`
