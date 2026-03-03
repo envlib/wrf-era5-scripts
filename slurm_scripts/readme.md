@@ -20,7 +20,7 @@ A pre-built SIF is published alongside each Docker image. This avoids the squash
 
 ```bash
 module load Apptainer
-apptainer pull oras://registry-1.docker.io/mullenkamp/wrf-era5-runs:<VERSION>-sif
+apptainer pull -o wrf-era5-runs_<VERSION>.sif oras://registry-1.docker.io/mullenkamp/wrf-era5-runs:<VERSION>-sif
 ```
 
 **Option C: Build from Docker Hub**
