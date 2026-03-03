@@ -139,7 +139,7 @@ Key flags:
 All scripts use `--contain` and `--cleanenv` for robust MPI behaviour across HPC environments:
 
 - **`--contain`** -- Prevents Apptainer from applying admin-configured bind mounts. Some HPC sites (e.g. NeSI) configure Apptainer to inject host MPI libraries into containers (the "hybrid MPI" model for InfiniBand performance). This replaces the container's own MPI with the host's MPICH, which then tries to use Slurm's PMI for process management. Since PMI isn't accessible from inside the container, `mpirun` fails with `HYD_pmci_wait_for_completion`. `--contain` blocks these admin bind mounts while still honoring the explicit `--bind` flags defined in the script. HPCs that don't inject host MPI (e.g. University of Canterbury) are unaffected by this flag.
-- **`--cleanenv`** -- Strips all host environment variables from the container, preventing Slurm variables (`SLURM_*`, `PMI_*`) from leaking in and interfering with the container's MPI. Only variables explicitly passed via `--env` are set inside the container.
+- **`--cleanenv`** -- Strips all host environment variables from the container, preventing Slurm variables (`SLURM_*`, `PMI_*`) from leaking in and interfering with the container's MPI. Only variables explicitly passed via `--env` are set inside the container. Note: `--cleanenv` also strips the `TZ` (timezone) variable and `--contain` blocks access to `/etc/localtime`, so `TZ=UTC` is explicitly passed via `--env`. The Python code also uses `pendulum.now('UTC')` rather than `pendulum.now()` to avoid depending on the container's timezone configuration.
 
 Each job gets an isolated data directory (using `$SLURM_JOB_ID` or `$SLURM_ARRAY_JOB_ID_$SLURM_ARRAY_TASK_ID`), so multiple runs don't interfere with each other.
 

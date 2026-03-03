@@ -187,9 +187,9 @@ def ul_output_files(files, run_path, name, out_path, config_path):
     cmd_str = f'rclone copy {run_path} {name}:{out_path} --transfers=4 --config={config_path} --files-from-raw -'
     cmd_list = shlex.split(cmd_str)
 
-    start_ul = pendulum.now()
+    start_ul = pendulum.now('UTC')
     p = subprocess.run(cmd_list, input=files_str, capture_output=True, text=True, check=False)
-    end_ul = pendulum.now()
+    end_ul = pendulum.now('UTC')
 
     diff = end_ul - start_ul
 

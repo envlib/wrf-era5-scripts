@@ -48,7 +48,7 @@ sentry_sdk.set_tags({'run_uuid': run_uuid})
 ########################################
 ### Run sequence
 
-start_time = pendulum.now()
+start_time = pendulum.now('UTC')
 
 print(f'-- run uuid: {run_uuid}')
 
@@ -131,7 +131,7 @@ else:
 # print('-- Running WRF...')
 # monitor_wrf(outputs, end_date, run_uuid, rename_dict)
 
-# end_time = pendulum.now()
+# end_time = pendulum.now('UTC')
 
 # print(f"-- end time: {end_time.format('YYYY-MM-DD HH:mm:ss')}")
 

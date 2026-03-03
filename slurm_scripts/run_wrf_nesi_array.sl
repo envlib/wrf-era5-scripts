@@ -99,7 +99,8 @@ BIND_ARGS="${BIND_ARGS},${DATA_DIR}:/data"
 
 # ---- Build environment variable overrides -----------------------------------
 
-ENV_ARGS=(--env "n_cores=${SLURM_NTASKS}")
+ENV_ARGS=(--env "TZ=UTC")
+ENV_ARGS+=(--env "n_cores=${SLURM_NTASKS}")
 ENV_ARGS+=(--env "HYDRA_LAUNCHER=fork")
 ENV_ARGS+=(--env "HYDRA_IFACE=lo")
 ENV_ARGS+=(--env "start_date=${START_DATE}")

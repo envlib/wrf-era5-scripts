@@ -51,7 +51,7 @@ if params.is_sentry:
 ########################################
 ### Run sequence
 
-start_time = pendulum.now()
+start_time = pendulum.now('UTC')
 
 print(f'-- run uuid: {run_uuid}')
 
@@ -133,12 +133,12 @@ else:
     for i, domain in enumerate(domains):
         rename_dict[f'_d{i+1:02d}_'] = f'_d{domain:02d}_'
 
-start_time2 = pendulum.now()
+start_time2 = pendulum.now('UTC')
 
 print('-- Running WRF...')
 monitor_wrf(outputs, end_date, run_uuid, rename_dict)
 
-end_time = pendulum.now()
+end_time = pendulum.now('UTC')
 
 print(f"-- end time: {end_time.format('YYYY-MM-DD HH:mm:ss')}")
 

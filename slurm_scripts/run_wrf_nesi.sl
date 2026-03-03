@@ -99,7 +99,8 @@ BIND_ARGS="${BIND_ARGS},${DATA_DIR}:/data"
 # HYDRA_LAUNCHER=fork  — tell MPICH Hydra to fork locally, not via Slurm/SSH.
 # HYDRA_IFACE=lo       — force loopback for intra-container MPI communication.
 
-ENV_ARGS=(--env "n_cores=${SLURM_NTASKS}")
+ENV_ARGS=(--env "TZ=UTC")
+ENV_ARGS+=(--env "n_cores=${SLURM_NTASKS}")
 ENV_ARGS+=(--env "HYDRA_LAUNCHER=fork")
 ENV_ARGS+=(--env "HYDRA_IFACE=lo")
 
