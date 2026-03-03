@@ -1,10 +1,10 @@
 #!/bin/bash -e
 #SBATCH --job-name=wrf-era5
 #SBATCH --nodes=1                     # node count
-#SBATCH --partition=milan             # Or: large, bigmem, hgx — check nesi.org.nz
+#SBATCH --partition=genoa             # Or: large, bigmem, hgx — check nesi.org.nz
 #SBATCH --time=6:00:00
 #SBATCH --ntasks=24                    # MPI ranks for wrf.exe (maps to n_cores)
-#SBATCH --mem=96G
+#SBATCH --mem=32G
 #SBATCH --hint=nomultithread
 #SBATCH --output=wrf-era5_%j.log
 #SBATCH --error=wrf-era5_%j.err
@@ -36,9 +36,9 @@
 
 # ---- Configuration ----------------------------------------------------------
 
-PROJECT_CODE="rch043"                                           # UC project code
+PROJECT_CODE="rch999"                                           # UC project code
 IMAGE_NAME="wrf-era5-runs"                                      # Docker/SIF image name
-IMAGE_VERSION="2.0"                                             # Docker/SIF image version
+IMAGE_VERSION="2.2"                                             # Docker/SIF image version
 SCRATCH="/scratch/projects/${PROJECT_CODE}/"                    # Scratch base
 SIF_PATH="${SCRATCH}/${IMAGE_NAME}_${IMAGE_VERSION}.sif"        # Apptainer SIF image
 WPS_GEOG_PATH="${SCRATCH}/WPS_GEOG"                             # Static geography data
