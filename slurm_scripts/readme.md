@@ -14,7 +14,16 @@ The pipeline runs inside an Apptainer (SIF) image converted from the Docker imag
 wget -N https://b2.envlib.xyz/file/envlib/sif/wrf-era5-runs_<VERSION>.sif
 ```
 
-**Option B: Build from Docker Hub**
+**Option B: Pull pre-built SIF via ORAS**
+
+A pre-built SIF is published alongside each Docker image. This avoids the squashfs conversion that `apptainer pull docker://` requires (which can fail on memory-constrained HPC login nodes):
+
+```bash
+module load Apptainer
+apptainer pull oras://registry-1.docker.io/mullenkamp/wrf-era5-runs:<VERSION>-sif
+```
+
+**Option C: Build from Docker Hub**
 
 If your HPC allows it, you can convert directly from Docker Hub:
 
