@@ -20,7 +20,9 @@ A pre-built SIF is published alongside each Docker image. This avoids the squash
 
 ```bash
 module load Apptainer
-apptainer pull -o wrf-era5-runs_<VERSION>.sif oras://registry-1.docker.io/mullenkamp/wrf-era5-runs:<VERSION>-sif
+export VERSION=2.2
+apptainer pull oras://registry-1.docker.io/mullenkamp/wrf-era5-runs:${VERSION}-sif
+mv wrf-era5-runs_${VERSION}-sif.sif wrf-era5-runs_${VERSION}.sif
 ```
 
 **Option C: Build from Docker Hub**
@@ -29,25 +31,26 @@ If your HPC allows it, you can convert directly from Docker Hub:
 
 ```bash
 module load Apptainer
-apptainer pull docker://mullenkamp/wrf-era5-runs:<VERSION>
+export VERSION=2.2
+apptainer pull docker://mullenkamp/wrf-era5-runs:${VERSION}
 ```
 
 Note: This may fail on some HPC systems due to memory or permission constraints during the squashfs build. If so, build locally and transfer:
 
 ```bash
 # On your local machine
-apptainer pull docker://mullenkamp/wrf-era5-runs:<VERSION>
+apptainer pull docker://mullenkamp/wrf-era5-runs:${VERSION}
 
 # Copy to HPC
-scp wrf-era5-runs_<VERSION>.sif user@hpc:/path/to/scratch/
+scp wrf-era5-runs_${VERSION}.sif user@hpc:/path/to/scratch/
 ```
 
 If you only have Docker locally (no Apptainer):
 
 ```bash
-docker pull mullenkamp/wrf-era5-runs:<VERSION>
-docker save mullenkamp/wrf-era5-runs:<VERSION> -o wrf-era5-runs_<VERSION>.tar
-apptainer build wrf-era5-runs_<VERSION>.sif docker-archive://wrf-era5-runs_<VERSION>.tar
+docker pull mullenkamp/wrf-era5-runs:${VERSION}
+docker save mullenkamp/wrf-era5-runs:${VERSION} -o wrf-era5-runs_${VERSION}.tar
+apptainer build wrf-era5-runs_${VERSION}.sif docker-archive://wrf-era5-runs_${VERSION}.tar
 ```
 
 ### 2. WPS_GEOG Static Data
