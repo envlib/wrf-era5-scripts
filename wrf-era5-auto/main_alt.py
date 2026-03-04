@@ -30,20 +30,22 @@ run_uuid = uuid.uuid4().hex[-13:]
 
 ########################################
 ## Sentry
-sentry = params.file['sentry']
 
-if sentry['dsn'] != '':
-    sentry_sdk.init(
-        dsn=sentry['dsn'],
-        # Add data like request headers and IP for users,
-        # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
-        send_default_pii=True,
-    )
-
-if sentry['tags']:
-    sentry_sdk.set_tags(sentry['tags'])
-
-sentry_sdk.set_tags({'run_uuid': run_uuid})
+if params.is_sentry:
+    sentry = params.file['sentry']
+    
+    if sentry['dsn'] != '':
+        sentry_sdk.init(
+            dsn=sentry['dsn'],
+            # Add data like request headers and IP for users,
+            # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
+            send_default_pii=True,
+        )
+    
+    if sentry['tags']:
+        sentry_sdk.set_tags(sentry['tags'])
+    
+    sentry_sdk.set_tags({'run_uuid': run_uuid})
 
 ########################################
 ### Run sequence
