@@ -121,10 +121,10 @@ run_real(run_uuid)
 if ndown_check:
 
     print('-- Running ndown.exe...')
-    run_ndown(run_uuid)
+    ndown_interval = run_ndown(run_uuid)
 
     start_date, end_date, hour_interval, outputs = set_nml_params(domains)
-    set_ndown_params()
+    set_ndown_params(ndown_interval)
 
     rename_dict = {'_d01_': f'_d{domains[-1]:02d}_'}
 

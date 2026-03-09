@@ -39,7 +39,8 @@ def run_ndown(run_uuid, del_old=True):
     wrf_nml = f90nml.read(params.wrf_nml_path)
     wrf_nml['time_control']['io_form_auxinput2'] = 2
     wrf_nml['time_control']['fine_input_stream'] = [0, 2] # Is this needed?
-    wrf_nml['time_control']['interval_seconds'] = wrf_nml['time_control']['history_interval'][0] * 60
+    ndown_interval = wrf_nml['time_control']['history_interval'][0] * 60
+    wrf_nml['time_control']['interval_seconds'] = ndown_interval
 
     with open(params.wrf_nml_path, 'w') as nml_file:
        wrf_nml.write(nml_file)
@@ -70,7 +71,7 @@ def run_ndown(run_uuid, del_old=True):
             new_file_path = params.run_path.joinpath(new_file)
             os.rename(file_path, new_file_path)
 
-        return True
+        return ndown_interval
     else:
         # scope = sentry_sdk.get_current_scope()
         # scope.add_attachment(path=real_log_path)

@@ -476,7 +476,7 @@ def set_nml_params(domains=None):
     return new_start_date.naive(), end_date.naive(), int(interval_hours), output_files
 
 
-def set_ndown_params():
+def set_ndown_params(interval_seconds):
     """
     Should be set after ndown is run.
     """
@@ -485,6 +485,7 @@ def set_ndown_params():
     wrf_nml['bdy_control']['have_bcs_moist'] = True
     wrf_nml['bdy_control']['have_bcs_scalar'] = True
     wrf_nml['time_control']['io_form_auxinput2'] = 2
+    wrf_nml['time_control']['interval_seconds'] = interval_seconds
 
     with open(params.wrf_nml_path, 'w') as nml_file:
         wrf_nml.write(nml_file)
