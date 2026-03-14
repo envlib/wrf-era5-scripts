@@ -64,6 +64,7 @@ else:
 run_path = data_path.joinpath('run')
 
 is_sentry = 'sentry' in file
+is_remote_output = 'remote' in file and 'output' in file.get('remote', {})
 
 if not data_path.exists():
     data_path.mkdir(exist_ok=True)

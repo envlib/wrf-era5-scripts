@@ -34,14 +34,18 @@ def monitor_wrf(outputs, end_date, run_uuid, rename_dict):
     """
 
     """
-    remote = copy.deepcopy(params.file['remote']['output'])
+    if params.is_remote_output:
+        remote = copy.deepcopy(params.file['remote']['output'])
 
-    name = 'output'
+        name = 'output'
 
-    if 'path' in remote:
-        out_path = pathlib.Path(remote.pop('path'))
+        if 'path' in remote:
+            out_path = pathlib.Path(remote.pop('path'))
+        else:
+            out_path = None
     else:
         out_path = None
+        name = None
 
     # output_globs = [out_files_glob[op] for op in outputs]
 
@@ -98,11 +102,12 @@ def monitor_wrf(outputs, end_date, run_uuid, rename_dict):
             results_str = pe.stdout
         # scope = sentry_sdk.get_current_scope()
         # scope.add_attachment(path=wrf_log_path)
-        print(f'-- Uploading WRF log files for run uuid: {run_uuid}')
-        dest_str = f'{name}:{out_path}/logs/{run_uuid}/'
-        cmd_str = f'rclone copy {params.run_path} {dest_str} --no-check-dest --config={params.config_path} --include "rsl.*" --transfers=8'
-        cmd_list = shlex.split(cmd_str)
-        p = subprocess.run(cmd_list, capture_output=True, text=True, check=True)
+        if out_path is not None:
+            print(f'-- Uploading WRF log files for run uuid: {run_uuid}')
+            dest_str = f'{name}:{out_path}/logs/{run_uuid}/'
+            cmd_str = f'rclone copy {params.run_path} {dest_str} --no-check-dest --config={params.config_path} --include "rsl.*" --transfers=8'
+            cmd_list = shlex.split(cmd_str)
+            p = subprocess.run(cmd_list, capture_output=True, text=True, check=True)
 
         raise ValueError(f'wrf.exe failed. Look at the logs for details: {results_str}')
 

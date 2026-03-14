@@ -26,6 +26,9 @@ def upload_namelists(run_uuid):
     """
 
     """
+    if not params.is_remote_output:
+        return
+
     remote = copy.deepcopy(params.file['remote']['output'])
 
     if 'path' in remote:

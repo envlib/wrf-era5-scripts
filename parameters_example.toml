@@ -212,10 +212,10 @@ access_key_id = ''
 secret_access_key = ''
 path = '/data/ncar/era5/'
 
-[remote.output]                            # Destination for WRF output uploads
-type = 's3'
-provider = 'Mega'
-endpoint = 'https://s3.ca-west-1.s4.mega.io'
-access_key_id = ''
-secret_access_key = ''
-path = '/wrf-1k/output/test1'
+# [remote.output]                          # Destination for WRF output uploads (optional)
+# type = 's3'
+# provider = 'Mega'
+# endpoint = 'https://s3.ca-west-1.s4.mega.io'
+# access_key_id = ''
+# secret_access_key = ''
+# path = '/wrf-1k/output/test1'
