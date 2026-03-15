@@ -7,6 +7,7 @@ Created on Mon Oct  6 10:40:23 2025
 """
 import os
 import pathlib
+import resource
 import shlex
 import subprocess
 import pendulum
@@ -49,6 +50,7 @@ def run_real(run_uuid, del_old=True):
     p = subprocess.run(cmd_str, shell=True, capture_output=False, text=False, check=False, cwd=params.run_path)
 
     ## Run real.exe
+    resource.setrlimit(resource.RLIMIT_STACK, (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
     cmd_str = f'mpirun -n 4 --map-by core {params.real_exe}'
     cmd_list = shlex.split(cmd_str)
     p = subprocess.run(cmd_list, capture_output=False, text=False, check=False, cwd=params.run_path)
