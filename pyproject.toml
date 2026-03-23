@@ -3,11 +3,11 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "wrf-era5-scripts"
+name = "wrf-auto-runs"
 version = '0.0.1'
 description = ''
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 license = "MIT"
 keywords = []
 authors = [
@@ -28,7 +28,7 @@ dependencies = [
   'f90nml==1.4.5',
   'pendulum==3.1.0',
   'era5_to_int==0.2.0',
-  'wrf_to_int==0.1.5',
+  'wrf_to_int==0.1.6',
   'sentry-sdk==2.39.0',
   'pyproj==3.7.2',
   'h5netcdf==1.6.3',
