@@ -1,5 +1,5 @@
 #!/bin/bash -e
-#SBATCH --job-name=test
+#SBATCH --job-name=topo-3km
 #SBATCH --nodes=1
 #SBATCH --partition=batch               # Updated to your local partition
 #SBATCH --time=24:00:00
@@ -21,7 +21,10 @@ SHARED_BASE="/shared/wrf_data"                                  # Your new NFS s
 SIF_PATH="${SHARED_BASE}/${IMAGE_NAME}_${IMAGE_VERSION}.sif"    # Apptainer SIF image
 WPS_GEOG_PATH="${SHARED_BASE}/WPS_GEOG"                         # Static geography data
 PARAMS_FILE="$(pwd)/parameters.toml"                            # Path to parameters.toml
-DATA_DIR="${SHARED_BASE}/wrf_runs/${SLURM_JOB_ID}"              # Per-job working directory
+# DATA_DIR="${SHARED_BASE}/wrf_runs/${SLURM_JOB_ID}"              # Per-job working directory
+
+# The local SSD/NVMe drive on whichever node this lands on
+LOCAL_SCRATCH="/var/tmp/wrf_scratch/${SLURM_JOB_ID}"
 
 # ---- Apptainer cache setup --------------------------------------------------
 
@@ -48,16 +51,16 @@ fi
 
 # ---- Create per-job data directory ------------------------------------------
 
-mkdir -p "${DATA_DIR}"
+mkdir -p "${LOCAL_SCRATCH}"
 # Ensure log directory exists as well
-mkdir -p "${SHARED_BASE}/logs"
-echo "Job ${SLURM_JOB_ID}: data directory = ${DATA_DIR}"
+# mkdir -p "${SHARED_BASE}/logs"
+echo "Job ${SLURM_JOB_ID}: Running locally on $(hostname) in ${LOCAL_SCRATCH}"
 
 # ---- Build bind mounts ------------------------------------------------------
 
 BIND_ARGS="${PARAMS_FILE}:/app/parameters.toml"
 BIND_ARGS="${BIND_ARGS},${WPS_GEOG_PATH}:/WPS_GEOG:ro"
-BIND_ARGS="${BIND_ARGS},${DATA_DIR}:/data"
+BIND_ARGS="${BIND_ARGS},${LOCAL_SCRATCH}:/data"
 
 # ---- Build environment variable overrides -----------------------------------
 
@@ -71,7 +74,7 @@ ENV_ARGS+=(--env "HYDRA_IFACE=lo")
 echo "Starting WRF-ERA5 pipeline at $(date)"
 echo "SIF: ${SIF_PATH}"
 echo "Cores: ${SLURM_NTASKS}"
-echo "Data dir: ${DATA_DIR}"
+# echo "Data dir: ${LOCAL_SCRATCH}"
 
 apptainer exec \
     --cleanenv \
@@ -83,3 +86,4 @@ apptainer exec \
     bash -c "cd /app && uv run python -u main.py"
 
 echo "Pipeline finished at $(date)"
+echo "Data is safely stored in ${LOCAL_SCRATCH} on $(hostname)."
