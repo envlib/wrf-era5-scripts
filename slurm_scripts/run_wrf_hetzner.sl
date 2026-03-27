@@ -5,7 +5,9 @@
 #SBATCH --time=24:00:00
 #SBATCH --ntasks=48                    # You have 48 cores/node, so this uses a full node
 #SBATCH --mem=64G                      # You have ~256GB/node, this will easily fit
-#SBATCH --hint=nomultithread
+#SBATCH --cpus-per-task=2             # Request 2 logical CPUs per task
+#SBATCH --hint=nomultithread          # Ensure those 2 CPUs are on the same physical core
+#SBATCH --ntasks-per-core=1           # Explicitly restrict to 1 task per physical core
 #SBATCH --output=wrf-auto_%j.log
 #SBATCH --error=wrf-auto_%j.err
 

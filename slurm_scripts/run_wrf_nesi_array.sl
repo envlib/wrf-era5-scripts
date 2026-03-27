@@ -6,7 +6,9 @@
 #SBATCH --time=24:00:00
 #SBATCH --ntasks=8                    # MPI ranks for wrf.exe (maps to n_cores)
 #SBATCH --mem=32G
-#SBATCH --hint=nomultithread
+#SBATCH --cpus-per-task=2             # Request 2 logical CPUs per task
+#SBATCH --hint=nomultithread          # Ensure those 2 CPUs are on the same physical core
+#SBATCH --ntasks-per-core=1           # Explicitly restrict to 1 task per physical core
 #SBATCH --output=wrf-auto_%A_%a.log
 #SBATCH --error=wrf-auto_%A_%a.err
 #SBATCH --array=0-11                  # Adjust range for number of runs
