@@ -124,6 +124,46 @@ This produces:
 | ... | ... |
 | 11 | 2020-01-23 00:00:00 |
 
+### run_wrf_nesi_csv_array.sl -- Multiple Runs (Job Array, CSV-based)
+
+Submits multiple WRF runs as a Slurm job array. Each task reads its `start_date` and `end_date` from a CSV file, using `SLURM_ARRAY_TASK_ID` as a 0-based row index.
+
+**CSV format** (`slurm_scripts/periods.csv`):
+
+```
+start_date,end_date
+2020-01-01 00:00:00,2020-01-03 00:00:00
+2020-01-03 00:00:00,2020-01-05 00:00:00
+```
+
+**Submit:**
+
+```bash
+sbatch slurm_scripts/run_wrf_nesi_csv_array.sl
+sbatch --array=0-5 slurm_scripts/run_wrf_nesi_csv_array.sl   # override range
+```
+
+**Auto-detect array range from CSV:**
+
+```bash
+ROWS=$(( $(wc -l < slurm_scripts/run_periods.csv) - 1 ))
+sbatch --array=0-$((ROWS - 1)) slurm_scripts/run_wrf_nesi_csv_array.sl
+```
+
+**Use a different CSV file:**
+
+```bash
+CSV_FILE=/path/to/dates.csv sbatch slurm_scripts/run_wrf_nesi_csv_array.sl
+```
+
+### run_wrf_hetzner_csv_array.sl -- Multiple Runs on Hetzner (Job Array, CSV-based)
+
+Same CSV-based approach as `run_wrf_nesi_csv_array.sl`, configured for the Hetzner local cluster. Uses the Intel image (`wrf-auto-runs-intel:1.1`), local NVMe scratch, and shared NFS storage. Submit the same way:
+
+```bash
+sbatch slurm_scripts/run_wrf_hetzner_csv_array.sl
+```
+
 ### run_wrf_uc.sl -- University of Canterbury HPC
 
 A variant configured for a different HPC environment. Same structure as `run_wrf_nesi.sl` with different default paths and resource allocations.
