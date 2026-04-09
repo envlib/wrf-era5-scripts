@@ -1,0 +1,9 @@
+version: '3.3'
+
+services:
+  wrf-runs:
+    image: mullenkamp/wrf-auto-runs-intel-wvt:1.1
+    shm_size: '1gb'
+    volumes:
+        - "./parameters.toml:/app/parameters.toml"
+        - ~/WPS_GEOG:/WPS_GEOG

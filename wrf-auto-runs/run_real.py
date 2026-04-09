@@ -51,6 +51,9 @@ def run_real(run_uuid, del_old=True):
     cmd_str = 'ln -sf ../met_em* .'
     p = subprocess.run(cmd_str, shell=True, capture_output=False, text=False, check=False, cwd=params.run_path)
 
+    cmd_str = 'ln -sf ../trmask_d* .'
+    p = subprocess.run(cmd_str, shell=True, capture_output=False, text=False, check=False, cwd=params.run_path)
+
     ## Run real.exe
     resource.setrlimit(resource.RLIMIT_STACK, (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
     cmd_str = f'mpirun -n 4 --map-by core {params.real_exe}'

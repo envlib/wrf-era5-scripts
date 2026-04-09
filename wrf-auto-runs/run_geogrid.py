@@ -61,8 +61,9 @@ def run_geogrid(src_n_domains, domains, rm_existing=True):
         for i, domain in enumerate(domains):
             src_file_path = params.data_path.joinpath(f'geo_em.d{domain:02d}.nc')
             dst_file_path = params.data_path.joinpath(f'geo_em.d{i+1:02d}.nc')
-    
-            os.rename(src_file_path, dst_file_path)
+
+            if src_file_path != dst_file_path:
+                os.rename(src_file_path, dst_file_path)
 
     with h5netcdf.File(params.data_path.joinpath('geo_em.d01.nc')) as f:
         corner_lats = f.attrs['corner_lats']

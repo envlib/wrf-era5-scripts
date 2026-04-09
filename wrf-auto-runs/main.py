@@ -25,6 +25,7 @@ from check_ndown import check_ndown_params
 from run_geogrid import run_geogrid
 from run_ndown import run_ndown
 from download_ndown_input import dl_ndown_input
+from create_trmask import create_trmask
 
 import params
 import utils
@@ -99,6 +100,10 @@ print(min_lon, min_lat, max_lon, max_lat, sep=', ')
 start_date, end_date, hour_interval, outputs = set_nml_params(domains_init)
 
 print(f'start date: {start_date}, end date: {end_date}, input hour interval: {hour_interval}')
+
+if params.file.get('dynamics', {}).get('tracer_opt', 0) == 4:
+    print('-- Creating WVT tracer mask files...')
+    create_trmask(domains_init, start_date)
 
 print('-- Uploading updated namelists')
 ul_nml_check = upload_namelists(run_uuid)

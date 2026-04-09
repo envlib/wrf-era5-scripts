@@ -1,0 +1,174 @@
+# WRF-WVT (Water Vapor Tracers) configuration example
+#
+# This is a parameters.toml template for WVT simulations. Key differences from
+# the standard template:
+#   - [physics]: WVT requires WSM6 (mp=6), YSU PBL (bl=1), Kain-Fritsch (cu=1)
+#   - [dynamics]: tracer_opt=4 activates moisture tracers
+#   - [time_control]: auxinput8 settings for reading trmask files
+#   - [wvt]: configures the tracer source mask (auto-generated from geo_em)
+#
+# The trmask file is created automatically after geogrid when tracer_opt=4.
+
+# Number of MPI processes for wrf.exe (via mpirun -n)
+n_cores = 8
+
+# Additional wrfout variables to retain. WVT tracer variables will appear
+# automatically when tracer_opt=4 (tr_qv, TR_RAINNC, TRQFX, etc.).
+# Comment out to retain all variables.
+# output_variables = ['T2', 'Q2', 'PSFC', 'U10', 'V10', 'RAINNC', 'RAINC', 'TR_RAINNC', 'TR_RAINC', 'TR_SNOWNC', 'TR_GRAUPELNC', 'TRQFX']
+
+# =============================================================================
+# Local (non-Docker) mode -- uncomment to run outside the Docker container.
+# =============================================================================
+
+# [no_docker]
+# wps_path = '/home/mike/Build_WRF/WPS-4.6.0'
+# wrf_path = '/home/mike/Build_WRF/WRF-4.6.1-ARW'
+# data_path = '/home/mike/data/wrf/tests/test_data/'
+# geog_data_path = '/home/mike/WPS_GEOG'
+
+# =============================================================================
+# Time control
+# =============================================================================
+
+[time_control]
+start_date = "1990-07-02 00:00:00"
+duration_hours = 48
+interval_hours = 3
+
+# WVT requires auxinput8 for the tracer mask file
+io_form_auxinput8 = 2
+auxinput8_inname = "trmask_d<domain>"
+
+[time_control.history_file]
+interval_hours = [24, 1, 1, 1, 1, 1]
+begin_hours = 0
+
+[time_control.summary_file]
+output = true
+interval_days = 1
+n_days_per_file = 1
+
+[time_control.z_level_file]
+output = true
+z_levels = [30, 80, 150, 200, 350, 500, 750, 1000, 1300, 1600, 2000, 2500, 3000, 4000, 5000, 7000, 10000]
+
+# =============================================================================
+# Domain geometry
+# =============================================================================
+
+[domains]
+# run = [1, 2]
+dx = 27000
+dy = 27000
+map_proj = 'lambert'
+ref_lat = -39.619
+ref_lon = 170.083
+truelat1 = -39.619
+truelat2 = -39.619
+stand_lon = -129.917
+parent_id         = [1, 1, 2, 3, 3, 3]
+parent_grid_ratio = [1, 3, 3, 3, 3, 3]
+i_parent_start    = [1, 35, 14, 160, 171, 42]
+j_parent_start    = [1, 21, 12, 35, 308, 419]
+e_we              = [100, 133, 316, 319, 316, 406]
+e_sn              = [112, 202, 535, 832, 556, 238]
+geog_data_res     = ['default', 'default', 'default', 'modis_15s_lake+default', 'modis_15s_lake+default', 'modis_15s_lake+default']
+e_vert            = 33
+p_top_requested   = 5000
+parent_time_step_ratio = [1, 3, 3, 3, 3, 3]
+feedback = 0
+
+# =============================================================================
+# Physics -- WVT REQUIRED SETTINGS
+#
+# WRF-WVT requires specific physics schemes:
+#   mp_physics = 6       WSM6 microphysics (tracer version: wsm6_tr)
+#   bl_pbl_physics = 1   YSU PBL scheme (tracer version: ysu_tr)
+#   cu_physics = 1       Kain-Fritsch cumulus (tracer version: kfeta_tr)
+#                        Set cu_physics = 0 on convection-resolving domains (dx < ~4 km)
+#   scalar_pblmix = 0    Prevent double scalar turbulent diffusion
+#   tracer_pblmix = 0    Prevent double tracer turbulent diffusion
+#   sf_sfclay_physics = 1  Required by YSU PBL
+# =============================================================================
+
+[physics]
+mp_physics = 6
+bl_pbl_physics = 1
+cu_physics = [1, 1, 1, 0, 0, 0]
+sf_sfclay_physics = 1
+scalar_pblmix = 0
+tracer_pblmix = 0
+
+# =============================================================================
+# Dynamics -- WVT REQUIRED SETTINGS
+#
+#   tracer_opt = 4       Activate WVT moisture tracers
+#   tracer_adv_opt = 4   Positive-definite RK3 advection for tracers (required)
+#   tracer2dsource = 1   Enable 2D source regions (read from trmask file)
+#   tracer3dsource = 0   Enable 3D source regions (set to 1 if using TRMASK3D)
+#   tracer3dsink = 0     Enable 3D sink regions (set to 1 if using TRMASK3D2)
+# =============================================================================
+
+[dynamics]
+diff_opt = 2                # Full diffusion (metric terms on slopes)
+km_opt = 4                  # 2D Smagorinsky (km_opt=5 SMS-3DTKE is incompatible with YSU PBL)
+tracer_opt = 4
+tracer_adv_opt = 4
+tracer2dsource = 1
+tracer3dsource = 0
+tracer3dsink = 0
+
+# =============================================================================
+# WVT tracer mask configuration
+#
+# Controls automatic generation of trmask_d<domain> files after geogrid.
+# The mask defines where moisture is "tagged" as tracer moisture.
+#
+# mask_type options:
+#   "land"   - All land points (from LANDMASK in geo_em). Default.
+#   "ocean"  - All ocean points (inverse of LANDMASK)
+#   "bbox"   - Points within a lat/lon bounding box (requires min/max lat/lon)
+#   "all"    - Entire domain (all grid points = source)
+#
+# relax_width: number of grid points at domain edges set to 0 (WRF relaxation
+#   zone -- tracers are not conserved there). Default: 5.
+# =============================================================================
+
+[wvt]
+mask_type = "land"
+relax_width = 5
+# For bbox mask_type, uncomment and set these:
+# min_lat = -42.0
+# max_lat = -38.0
+# min_lon = 168.0
+# max_lon = 175.0
+
+# =============================================================================
+# FDDA (grid nudging) -- optional
+# =============================================================================
+
+# [fdda]
+# grid_fdda = [1, 1, 0, 0, 0, 0]
+
+# =============================================================================
+# Remote storage
+# =============================================================================
+
+[remote]
+
+[remote.era5]
+type = 's3'
+provider = 'Mega'
+endpoint = 'https://s3.ca-west-1.s4.mega.io'
+access_key_id = ''
+secret_access_key = ''
+path = '/data/ncar/era5/'
+
+# [remote.output]
+# type = 's3'
+# provider = 'Mega'
+# endpoint = 'https://s3.ca-west-1.s4.mega.io'
+# access_key_id = ''
+# secret_access_key = ''
+# path = '/wrf-wvt/output/test1'
