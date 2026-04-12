@@ -31,7 +31,12 @@ def create_trmask(domains, start_date):
     wvt_config = params.file.get('wvt', {})
     dynamics = params.file.get('dynamics', {})
     mask_type = wvt_config.get('mask_type', 'land')
-    relax_width = wvt_config.get('relax_width', 5)
+
+    # relax_width defaults to spec_bdy_width (from [bdy_control]) to match the
+    # WRF lateral boundary relaxation zone. Can be overridden in [wvt].
+    bdy_control = params.file.get('bdy_control', {})
+    default_relax = bdy_control.get('spec_bdy_width', 5)
+    relax_width = wvt_config.get('relax_width', default_relax)
 
     do_2d = dynamics.get('tracer2dsource', 0) == 1
     do_3d = dynamics.get('tracer3dsource', 0) == 1

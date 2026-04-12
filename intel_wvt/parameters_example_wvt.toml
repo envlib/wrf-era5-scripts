@@ -137,12 +137,13 @@ tracer3dsink = 0
 #   "all"    - Entire domain (all grid points = source)
 #
 # relax_width: number of grid points at domain edges set to 0 (WRF relaxation
-#   zone -- tracers are not conserved there). Default: 5.
+#   zone -- tracers are not conserved there). Defaults to spec_bdy_width from
+#   [bdy_control] (or 5 if not set). Override here only if needed.
 # =============================================================================
 
 [wvt]
 mask_type = "land"
-relax_width = 5
+# relax_width = 5  # defaults to spec_bdy_width, usually no need to set explicitly
 # For bbox mask_type, uncomment and set these:
 # min_lat = -42.0
 # max_lat = -38.0
