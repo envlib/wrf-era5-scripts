@@ -2,8 +2,10 @@ version: '3.3'
 
 services:
   wrf-runs:
-    build: .
-    image: mullenkamp/wrf-auto-runs-intel-wvt:1.2
+    build:
+      context: ../
+      dockerfile: intel_wvt/Dockerfile
+    image: mullenkamp/wrf-auto-runs-intel-wvt:1.3
     shm_size: '1gb'
     volumes:
         - "./parameters.toml:/app/parameters.toml"
