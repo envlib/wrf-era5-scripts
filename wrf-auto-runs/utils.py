@@ -51,6 +51,47 @@ def create_rclone_config(name, config_path, config_dict):
     return config_path
 
 
+def dl_include_names(pattern, dts):
+    """Both time spellings of each datetime, for an rclone --include-from list.
+
+    ``pattern`` is a format string taking ``date``, e.g. ``'wrfout_d01_{date}.nc'``.
+
+    These functions consume a PRIOR run's archive, whose spelling is that run's, not this one's.
+    Output uploaded before monitor_wrf began renaming ':' -> '_' keeps colons permanently and
+    cannot be regenerated, so both spellings have to be requested indefinitely.
+    """
+    names = []
+    for dt in dts:
+        colon = dt.strftime(params.wps_date_format)
+        names.append(pattern.format(date=colon))
+        names.append(pattern.format(date=colon.replace(':', '_')))
+    return names
+
+
+def dedupe_dl_listing(file_list):
+    """Collapse an rclone listing to one file per timestep, preferring the colon-free spelling.
+
+    A remote can legitimately hold both spellings of the same timestep: a chunk that crashed and
+    was resubmitted across the rename cutover re-uploads under a different object key, so the
+    older colon-named file is not clobbered. Downloading both would hand wrf_to_int (or ndown)
+    the same timestep twice with no error.
+
+    Underscore wins because it is by construction the later upload -- and because the colon-named
+    member may be a 1-frame placeholder that its 8-frame replacement failed to clobber.
+    """
+    by_key = {}
+    for fname in file_list:
+        key = fname.replace(':', '_')
+        prev = by_key.get(key)
+        if prev is None:
+            by_key[key] = fname
+        elif prev != fname:
+            keep, drop = (fname, prev) if fname == key else (prev, fname)
+            print(f'-- WARNING: {drop} and {keep} are the same timestep on the remote; using {keep}')
+            by_key[key] = keep
+    return sorted(by_key.values())
+
+
 def dt_to_file_names(prefix, dts, domains):
     """
     pendulum datetimes to wrfout file names.
@@ -167,27 +208,46 @@ def select_files_to_ul(out_files, min_files, wrfxtrm_skip_newest=False):
 
 
 def rename_files(files, rename_dict):
-    """
+    """Apply every matching rename rule to each file, one os.rename per file.
 
-    """
-    if rename_dict:
-        new_files = set()
-        # Descending sort so high-numbered domains (e.g., wrfout_d02_...) move
-        # to their new slot (d03) BEFORE a lower-numbered file (wrfout_d01_...)
-        # renames into the d02 slot. Without this, os.rename silently overwrites
-        # the d02 file on POSIX and the higher-domain data is destroyed.
-        for file_path in sorted(files, reverse=True):
-            orig_path, orig_file_name = os.path.split(file_path)
-            for orig, new in rename_dict.items():
-                if orig in orig_file_name:
-                    file_name = orig_file_name.replace(orig, new)
-                    new_file_path = os.path.join(orig_path, file_name)
-                    os.rename(file_path, new_file_path)
-                    new_files.add(new_file_path)
+    Returns the post-rename path of EVERY input file, whether or not any rule matched.
 
-        new_files = list(new_files)
-    else:
-        new_files = files
+    Two properties are load-bearing and both have regression tests in
+    tests/test_rename_files.py -- neither is obvious from reading the call sites:
+
+    1. Each rule's membership test runs against the ORIGINAL filename, never against the
+       partially-rewritten one. The nested-ndown map chains ({'_d01_': '_d02_',
+       '_d02_': '_d03_'}), so matching on a rewritten name would send the d01 file through
+       the d02 rule as well and land it on d03 -- on top of the real d02 file, which
+       os.rename destroys silently on POSIX.
+    2. Files matching no rule are still returned. They are re-selected by the caller after a
+       failed upload (deletion only happens on rclone exit 0), and by then they already carry
+       their renamed names, so no rule matches on the retry. Dropping them here would strand
+       them on local disk forever, unuploaded and never reported.
+    """
+    if not rename_dict:
+        return files
+
+    new_files = []
+    # Descending sort so high-numbered domains (e.g., wrfout_d02_...) move
+    # to their new slot (d03) BEFORE a lower-numbered file (wrfout_d01_...)
+    # renames into the d02 slot. Without this, os.rename silently overwrites
+    # the d02 file on POSIX and the higher-domain data is destroyed.
+    for file_path in sorted(files, reverse=True):
+        orig_path, orig_file_name = os.path.split(file_path)
+
+        new_file_name = orig_file_name
+        for orig, new in rename_dict.items():
+            if orig in orig_file_name:
+                new_file_name = new_file_name.replace(orig, new)
+
+        if new_file_name == orig_file_name:
+            new_files.append(file_path)
+            continue
+
+        new_file_path = os.path.join(orig_path, new_file_name)
+        os.rename(file_path, new_file_path)
+        new_files.append(new_file_path)
 
     return new_files
 

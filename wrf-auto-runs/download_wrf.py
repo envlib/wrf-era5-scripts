@@ -38,15 +38,11 @@ def dl_wrf(start_date, end_date):
     start_date1 = pendulum.instance(start_date).start_of('day')
     end_date1 = pendulum.instance(end_date).start_of('day')
 
-    include_from = ''
+    days = list(pendulum.interval(start_date1, end_date1).range('days'))
+    day_count = len(days)
 
-    days = pendulum.interval(start_date1, end_date1).range('days')
-
-    day_count = 0
-    for day in days:
-        datetime_str = day.strftime(params.wps_date_format)
-        include_from += f'wrfout_{domain}_{datetime_str}.nc\n'
-        day_count += 1
+    # Request both time spellings; the archive's spelling is the SOURCE run's, not ours.
+    include_from = '\n'.join(utils.dl_include_names(f'wrfout_{domain}_{{date}}.nc', days)) + '\n'
 
     ## Check that all required files exist on remote
     src_str = f'{name}:{wrf_path}/'
@@ -55,16 +51,21 @@ def dl_wrf(start_date, end_date):
     cmd_list = shlex.split(cmd_str)
     p = subprocess.run(cmd_list, input=include_from, capture_output=True, text=True, check=False)
 
-    file_list = p.stdout.split('\n')[:-1]
+    # Collapse any date present under both spellings to one file BEFORE counting, then drive the
+    # download from the deduped list -- reusing the both-spellings include_from here would copy
+    # duplicates down and wrf_to_int would ingest the timestep twice with no error.
+    file_list = utils.dedupe_dl_listing(p.stdout.split('\n')[:-1])
 
     if len(file_list) != day_count:
         file_list_str = '\n'.join(file_list)
         raise ValueError(f"Expected {day_count} wrfout files on remote but found {len(file_list)}:\n{file_list_str}")
 
+    download_from = '\n'.join(file_list) + '\n'
+
     ## Download
     cmd_str = f'rclone copy {src_str} {params.data_path}/wrfout --transfers=4 --config={config_path} --include-from -'
     cmd_list = shlex.split(cmd_str)
-    p = subprocess.run(cmd_list, input=include_from, capture_output=True, text=True, check=False)
+    p = subprocess.run(cmd_list, input=download_from, capture_output=True, text=True, check=False)
 
     if p.stderr != '':
         raise ValueError(p.stderr)

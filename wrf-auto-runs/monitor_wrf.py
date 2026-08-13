@@ -36,6 +36,19 @@ def monitor_wrf(outputs, end_date, run_uuid, rename_dict, chunk_end=None):
     """
 
     """
+    # Colons are awkward in shell globs, rclone filters and S3 keys, so archived output is named
+    # wrfout_d01_2023-01-02_00_00_00.nc. Injected HERE rather than at the four rename_dict
+    # construction sites (main.py:223/330/346/351) because this is the single point where the
+    # dict is consumed -- rename_files has no other caller, so one injection covers every path
+    # including any added later.
+    #
+    # This deliberately does NOT reach wrfrst. Restart files bypass rename_files entirely (they
+    # go via upload_wrfrst) and must round-trip back into run_path under exactly the name wrf.exe
+    # reconstructs for itself, so renaming them would break the chunk handoff. rename_files only
+    # ever receives query_out_files output, which prefix-filters to wrfout_d/wrfxtrm_d/
+    # wrfzlevels_d, so a wrfrst cannot reach it regardless of what this dict contains.
+    rename_dict = {**rename_dict, ':': '_'}
+
     if params.is_remote_output:
         remote = copy.deepcopy(params.file['remote']['output'])
 

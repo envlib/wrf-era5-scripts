@@ -44,17 +44,13 @@ def dl_ndown_input(new_top_domain, start_date, end_date):
     # start_month = start_date1.start_of('month')
     # end_month = end_date1.start_of('month')
 
-    include_from = ''
+    days = list(pendulum.interval(start_date1, end_date1).range('days'))
+    day_count = len(days)
 
-    days = pendulum.interval(start_date1, end_date1).range('days')
-
-    day_count = 0
-    for day in days:
-        datetime_str = day.strftime(params.wps_date_format)
-
-        include_from += f'wrfout_d{new_top_domain:02d}_{datetime_str}.nc\n'
-
-        day_count += 1
+    # Request both time spellings; the archive's spelling is the SOURCE run's, not ours.
+    include_from = '\n'.join(
+        utils.dl_include_names(f'wrfout_d{new_top_domain:02d}_{{date}}.nc', days)
+    ) + '\n'
 
     ## Check for the files
     src_str = f'{name}:{input_path}/'
@@ -63,16 +59,21 @@ def dl_ndown_input(new_top_domain, start_date, end_date):
     cmd_list = shlex.split(cmd_str)
     p = subprocess.run(cmd_list, input=include_from, capture_output=True, text=True, check=False)
 
-    file_list = p.stdout.split('\n')[:-1]
+    # Collapse any date present under both spellings BEFORE counting, then drive the download
+    # from the deduped list. Duplicates would otherwise become two d01 files for one timestep
+    # after the rename below, which ndown's sequential file walk would read twice.
+    file_list = utils.dedupe_dl_listing(p.stdout.split('\n')[:-1])
 
     if len(file_list) != day_count:
         file_list_str = '\n'.join(file_list)
         raise ValueError(f"Total number of files to download for ndown should be {day_count}, but there are {len(file_list)} in the remote:\n{file_list_str}")
 
+    download_from = '\n'.join(file_list) + '\n'
+
     ## Download
     cmd_str = f'rclone copy {src_str} {params.data_path} --transfers=4 --config={config_path} --include-from -'
     cmd_list = shlex.split(cmd_str)
-    p = subprocess.run(cmd_list, input=include_from, capture_output=True, text=True, check=False)
+    p = subprocess.run(cmd_list, input=download_from, capture_output=True, text=True, check=False)
 
     if len(p.stderr) > 0:
         raise ValueError(p.stderr)
