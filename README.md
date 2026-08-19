@@ -96,8 +96,18 @@ Activates the unified per-chunk workflow (the recommended mode for production ru
 
 Notes on chunked-run behaviour:
 
-- `apply_restart_namelist` automatically sets `write_hist_at_0h_rst=.true.` so each restart chunk writes a wrfout frame at chunk_start; combined with WRF's `NF_CLOBBER` open-for-write semantics, the next chunk's full 8-frame wrfout file overwrites the prior chunk's 1-frame placeholder at the same filename. Net effect: `Feb13_00:00:00.nc`, `Feb14_00:00:00.nc`, etc. all end up as 8-frame day files after the chain finishes.
+- `apply_restart_namelist` automatically sets `write_hist_at_0h_rst=.true.` so each restart chunk writes a wrfout frame at chunk_start; combined with WRF's `NF_CLOBBER` open-for-write semantics, the next chunk's full 8-frame wrfout file overwrites the prior chunk's 1-frame placeholder at the same filename. Net effect: `Feb13_00_00_00.nc`, `Feb14_00_00_00.nc`, etc. all end up as 8-frame day files after the chain finishes.
+- ⚠ **The clobber above depends on the two files having the SAME name, so never change the archive naming convention mid-chain.** A chain that straddles such a change uploads the 1-frame placeholder under one spelling and its 8-frame replacement under the other; they are different object keys, nothing is overwritten, and the archive keeps a file with an eighth of the data beside the good one. Cut over at a chain boundary. (This is why the colon rename below shipped with duplicate-date detection on the reader side.)
 - The wrfout file at chunk_end IS skipped on upload when chunk_end falls exactly at midnight (00:00:00) — that file is a "deceptive partial day" containing just the rollover frame, which is captured either in the next chunk's clobber or in the final chunk's wrfrst. Mid-day end_dates produce non-deceptive multi-frame final files and are uploaded normally.
+
+### Archived output filenames have no colons
+
+Uploaded output is named `wrfout_d01_2023-01-02_00_00_00.nc` — colons are replaced with underscores so the files are painless in shell globs, rclone filters and S3 keys. The same applies to `wrfxtrm` and `wrfzlevels`.
+
+- **The model is not configured for this.** WRF and WPS are untouched; `monitor_wrf` adds a `':' -> '_'` rule to the `rename_dict` it already uses for domain renumbering, so the rename happens on local disk immediately before upload. Files still on disk mid-run, and the `Times` values *inside* every file, keep their colons.
+- **`wrfrst` is deliberately excluded.** A restart file has to return to `run_path` under exactly the name `wrf.exe` reconstructs for itself, so renaming it would break the chunk handoff. It cannot reach the renamer anyway: `rename_files` only ever receives `query_out_files` output, which prefix-filters to `wrfout_d`/`wrfxtrm_d`/`wrfzlevels_d`.
+- **Archives written before this change keep their colons permanently** and cannot be regenerated, so both spellings will coexist indefinitely. `download_wrf.py` and `download_ndown_input.py` request both when consuming a prior run's output, and collapse a date found under both to one file (underscore wins — it is by construction the later upload).
+- WRF's `nocolons` namelist option was evaluated for this and **rejected**: it rewrites *every* filename WRF constructs, including the `met_em` input `real.exe` opens, and it permanently disables WRF's own `NUM_METGRID_SOIL_LEVELS` consistency check by breaking a date-string comparison it depends on. Do not re-propose it.
 
 ### `[time_control]`
 
