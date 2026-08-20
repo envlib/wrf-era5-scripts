@@ -238,7 +238,7 @@ DOMAINS_PER_DOMAIN_FIELDS = {
 PHYSICS_PER_DOMAIN_FIELDS = {
     'mp_physics', 'cu_physics', 'ra_lw_physics', 'ra_sw_physics',
     'bl_pbl_physics', 'sf_sfclay_physics', 'sf_surface_physics',
-    'radt', 'bldt', 'cudt', 'sf_urban_physics',
+    'radt', 'bldt', 'cudt', 'sf_urban_physics', 'prec_acc_dt',
 }
 
 # WVT dynamics switches: per-domain (must be broadcast to all domains to prevent tracer

@@ -183,6 +183,61 @@ class TestSetNmlParams:
         assert wrf['domains']['max_dom'] == 2
 
 
+class TestPrecAccDt:
+    """prec_acc_dt drives WRF's PREC_ACC_C/NC + SNOW_ACC_NC windowed accumulators.
+
+    It defaults to each domain's own history_interval so every wrfout frame carries the
+    precip for (frame_time - history_interval, frame_time]. That is what makes a frame
+    self-contained: RAINC/RAINNC are running totals that restart at zero on every cold
+    start, so an archive stitched from independent runs cannot difference across a seam.
+    """
+
+    def test_defaults_to_history_interval(self, mock_params, tmp_path):
+        """No [physics] override -> prec_acc_dt mirrors history_interval, per domain."""
+        mock_params['time_control']['history_file']['interval_hours'] = [24, 24, 1]
+
+        set_nml_params()
+
+        wrf = f90nml.read(tmp_path / 'namelist.input')
+        assert wrf['physics']['prec_acc_dt'] == [1440, 1440, 60]
+        assert wrf['physics']['prec_acc_dt'] == wrf['time_control']['history_interval']
+
+    def test_user_override_wins(self, mock_params, tmp_path):
+        """A [physics] value must survive: `physics` is built before the setdefault."""
+        mock_params['physics'] = {'prec_acc_dt': [30, 30, 30]}
+
+        set_nml_params()
+
+        wrf = f90nml.read(tmp_path / 'namelist.input')
+        assert wrf['physics']['prec_acc_dt'] == [30, 30, 30]
+
+    def test_user_scalar_is_broadcast(self, mock_params, tmp_path):
+        """Scalar override broadcasts per domain (prec_acc_dt is in PHYSICS_PER_DOMAIN_FIELDS)."""
+        mock_params['physics'] = {'prec_acc_dt': 30}
+
+        set_nml_params()
+
+        wrf = f90nml.read(tmp_path / 'namelist.input')
+        assert wrf['physics']['prec_acc_dt'] == [30, 30, 30]
+
+    def test_domain_subset_tracks_history_interval(self, mock_params, tmp_path):
+        """Default follows the sliced history_interval, not the full-domain list."""
+        mock_params['time_control']['history_file']['interval_hours'] = [24, 24, 1]
+
+        set_nml_params(domains=[1, 3])
+
+        wrf = f90nml.read(tmp_path / 'namelist.input')
+        assert wrf['physics']['prec_acc_dt'] == [1440, 60]
+
+    def test_domain_subset_slices_user_override(self, mock_params, tmp_path):
+        """A full-length [physics] override is sliced to the run domains."""
+        mock_params['physics'] = {'prec_acc_dt': [30, 45, 60]}
+
+        set_nml_params(domains=[1, 3])
+
+        wrf = f90nml.read(tmp_path / 'namelist.input')
+        assert wrf['physics']['prec_acc_dt'] == [30, 60]
+
 @pytest.fixture()
 def reset_chunked_flag():
     """Ensure params._chunked_mode_active doesn't bleed across tests."""

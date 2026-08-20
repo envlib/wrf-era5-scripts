@@ -531,8 +531,12 @@ def set_nml_params(domains=None):
     wrf_tc['end_hour'] = [end_date.hour] * n_domains
     wrf_tc['input_from_file'] = [True] * n_domains
 
-    ## prec_acc_dt
-    # physics['prec_acc_dt'] = history_interval_nml
+    ## prec_acc_dt: window each domain's PREC_ACC_C/NC + SNOW_ACC_NC to its own history
+    ## interval, so frame t carries the precip over (t - history_interval, t]. Without it the
+    ## only precip signal is the RAINC/RAINNC running totals, which restart from zero at every
+    ## cold start -- so an archive stitched from independent runs loses one interval per seam.
+    ## setdefault, not assignment: `physics` already holds the [physics] TOML block, which wins.
+    physics.setdefault('prec_acc_dt', history_interval_nml)
 
     ## Noah-MP symlink
     surface_physics = physics.get('sf_surface_physics', 4)
