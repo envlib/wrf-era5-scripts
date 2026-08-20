@@ -536,7 +536,10 @@ def set_nml_params(domains=None):
     ## only precip signal is the RAINC/RAINNC running totals, which restart from zero at every
     ## cold start -- so an archive stitched from independent runs loses one interval per seam.
     ## setdefault, not assignment: `physics` already holds the [physics] TOML block, which wins.
-    physics.setdefault('prec_acc_dt', history_interval_nml)
+    ## list(): history_interval_nml is also bound into wrf_tc['history_interval'] and
+    ## auxhist22_interval, and this file mutates such lists in place elsewhere (see
+    ## max_step_increase_pct), so sharing one object across three namelist groups is a footgun.
+    physics.setdefault('prec_acc_dt', list(history_interval_nml))
 
     ## Noah-MP symlink
     surface_physics = physics.get('sf_surface_physics', 4)
