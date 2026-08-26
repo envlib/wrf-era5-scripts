@@ -199,6 +199,57 @@ OUTPUT_PRESETS = {
         # Soil fields
         'DZS', 'SMOIS', 'TSLB',
     },
+
+    # --------------------------------------------------------------------
+    # Water-vapour-tracer (WVT) campaigns. Two presets, ADDITIVE not nested:
+    #   output_presets = ['wvt_2d']            -> long campaigns (C1: 45 yr)
+    #   output_presets = ['wvt_2d', 'wvt_3d']  -> short runs (case studies, S1 events)
+    # They union (see params.py), so 'wvt_3d' holds ONLY the 3D additions and the
+    # 2D list is never duplicated.
+    #
+    # Sizing measured on a 12 km d01, 8 regions, 50 levels (2026-08-26): a full
+    # unfiltered wrfout day is 4.46 GB, of which 91% is 4D model-level data.
+    # 'wvt_2d' alone is ~0.41 GB/day (~6.7 TB over 45 yr); adding 'wvt_3d' takes it
+    # to ~0.79 GB/day (~12.9 TB). Full 3D retention for C1 is not feasible.
+    # --------------------------------------------------------------------
+    'wvt_2d': {
+        # -- Total precipitation. The I_* bucket counters are NOT optional: cfdb-ingest
+        #    reconstructs the accumulation as var + BUCKET_MM * I_var, so omitting a
+        #    counter silently corrupts totals every time the bucket ticks.
+        'RAINNC', 'RAINC', 'I_RAINNC', 'I_RAINC',
+        # -- Tagged precipitation, per region on a single wvt_regions axis (no expansion
+        #    needed -- these are one variable each, unlike the 3D named members).
+        'TR_RAINNC', 'TR_RAINC', 'I_TR_RAINNC', 'I_TR_RAINC',
+        # -- Column diagnostics computed in-model at history-write time
+        #    (registry.diag_columns / module_diag_wvt_columns.F). These exist precisely
+        #    so the 3D fields need not be retained; formulas match cfdb-ingest.
+        'PWAT', 'PWAT_TR', 'VIMF_U', 'VIMF_V', 'VIMF_TR_U', 'VIMF_TR_V', 'IVT',
+        # -- Storm identification / cataloguing (MSLP-based tracking, IVT above for ARs)
+        'SLP',
+        # -- Static fields. HGT is 2D but is only auto-added alongside the 3D coordinate
+        #    set, so a 2D-only preset must name it explicitly; LANDMASK is never
+        #    auto-added and the NZ landmask derivation depends on it.
+        'HGT', 'LANDMASK', 'XLAND',
+        # -- Earth-relative wind rotation
+        'COSALPHA', 'SINALPHA',
+        # -- Surface fields for station validation of the campaign itself
+        'T2', 'Q2', 'PSFC', 'U10', 'V10', 'SWDOWN',
+    },
+
+    'wvt_3d': {
+        # Vertical structure of tagged vs total water vapour. ONLY the base name is
+        # listed: resolve_output_variables expands qv_tr -> qv_tr, qv_tr_02 .. qv_tr_0N
+        # from the live num_wvt_regions, so this stays correct as the region count
+        # changes. P/PB/PH/PHB/HGT are pulled in automatically once any 3D member is
+        # present -- do not list them here, and note that this is exactly why the 2D
+        # preset must stay free of 3D variables.
+        #
+        # Deliberately vapour only. The other five tracer species (qc_tr, qr_tr, qi_tr,
+        # qs_tr, qg_tr) each add another N-region 3D family -- a ~6x multiplier on the
+        # largest term in the archive. Add them per-run when a specific question needs
+        # condensate, not by default.
+        'qv_tr', 'QVAPOR',
+    },
 }
 
 # ============================================================
