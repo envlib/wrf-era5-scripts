@@ -48,7 +48,12 @@ Both WPS builds inject heap-array allocation flags (`-fno-stack-arrays` for gfor
 **Lateral-boundary face tags** (`[wvt] boundary_faces`, added 2026-09-06; spec:
 `wrf-model-eval/docs/wvt_boundary_tags_design.md`). `boundary_faces = ["west", "east", "south", "north"]`
 appends one **column-relabel** region per face after the source regions, so their region indices are always
-last and the source indices never move. Absent or `[]` reproduces the pre-existing behaviour exactly, which
+last and the source indices never move. ⚠ **The faces are appended in CANONICAL `BOUNDARY_FACES` order
+(west, east, south, north), not the order the TOML lists them** — region indices 9.. are assigned in that
+order everywhere downstream, so a TOML listing `["north","west"]` would otherwise make region 9 the north
+shell while every label called it west. `resolve_relax_width()` is the single answer to how wide the margin
+is, shared by `create_trmask` and `set_params`; `margin_geometry()` is the single definition of the margin
+itself, used by the shells, the source-mask zeroing and the tiling check. Absent or `[]` reproduces the pre-existing behaviour exactly, which
 is how the 8-region fallback is selected — a one-line edit, not a config rewrite. Each face's mask is the
 outermost `relax_width` cells nearest it (corner ties to west/east); the shells therefore sit exactly in the
 margin every source mask already zeroes, so they are disjoint from the sources by construction. Fewer than

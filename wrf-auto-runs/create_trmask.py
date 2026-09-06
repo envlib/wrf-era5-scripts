@@ -31,6 +31,7 @@ import scipy.io.netcdf as nc3
 from scipy import ndimage
 import h5netcdf
 
+import defaults
 import params
 
 
@@ -127,12 +128,35 @@ def normalize_boundary_faces(wvt_config):
         if f in seen:
             raise ValueError(f'[wvt] boundary_faces: face {f!r} listed more than once.')
         seen.add(f)
-    return faces
+    # CANONICAL order, not the user's: region indices 9.. are assigned in BOUNDARY_FACES order
+    # everywhere downstream (the gate's labels, wvt_regions.BOUNDARY_REGIONS), so a TOML listing
+    # ["north","west"] must not silently make region 9 the north shell (review round
+    # redund-code-1: the gate accepted such a mask and labelled every face wrongly).
+    return [f for f in BOUNDARY_FACES if f in seen]
 
 
 def num_wvt_regions(wvt_config):
     """Number of WVT source regions defined in the [wvt] section (>= 1)."""
     return len(normalize_wvt_regions(wvt_config))
+
+
+def resolve_relax_width(wvt_config, bdy_control):
+    """The margin width the masks use, as an int.
+
+    Precedence: ``[wvt] relax_width`` -> ``[bdy_control] spec_bdy_width`` -> the pipeline default.
+    The default is ``defaults.WRF_BDY_CONTROL_DEFAULTS['spec_bdy_width']`` -- the SAME constant
+    set_params writes into the namelist -- and not a literal, so the masks and the namelist
+    cannot drift apart through two copies of one number (they agreed by coincidence of defaults
+    until 2026-09-07). Per-domain list values are read at d01, exactly as set_params._first does;
+    before this the mask side took the raw list and ``mask[:relax_width]`` raised TypeError while
+    the width guard in set_params passed, because it compared against an already-normalised value.
+    """
+    def _d01(v):
+        return v[0] if isinstance(v, list) else v
+
+    default = defaults.WRF_BDY_CONTROL_DEFAULTS['spec_bdy_width']
+    nml_w = _d01(bdy_control.get('spec_bdy_width', default))
+    return int(_d01(wvt_config.get('relax_width', nml_w)))
 
 
 def _check4(name, region_name, v):
@@ -234,6 +258,37 @@ def fill_enclosed_water(landmask):
     return out, int(enclosed.sum())
 
 
+def margin_geometry(we, sn):
+    """Per-cell distances to the domain edges, for a `sn` x `we` grid (axis 0 = south-north).
+
+    Returns a dict with ``d_west, d_east, d_south, d_north`` (cells to each edge), ``d_we`` and
+    ``d_sn`` (the axis minima) and ``dist`` (the Chebyshev distance to the nearest edge). A pure
+    function of the grid shape, and the ONE definition of margin geometry in this module: the
+    boundary shells, the source-mask margin zeroing and the shell-tiling check all consume it.
+    Before 2026-09-07 each of the three re-derived the margin with its own expression; they
+    agreed, but nothing made them agree, which is the defect class the boundary-tag review
+    rounds kept finding in the checking code.
+
+    The outermost `relax_width` rings are ``dist < relax_width``.
+    """
+    j = np.arange(sn)[:, None]          # south-north (axis 0)
+    i = np.arange(we)[None, :]          # west-east   (axis 1)
+    d_west, d_east = i, we - 1 - i
+    d_south, d_north = j, sn - 1 - j
+    d_we = np.minimum(d_west, d_east)
+    d_sn = np.minimum(d_south, d_north)
+    dist = np.minimum(d_we, d_sn)
+    return {
+        'd_west': np.broadcast_to(d_west, (sn, we)),
+        'd_east': np.broadcast_to(d_east, (sn, we)),
+        'd_south': np.broadcast_to(d_south, (sn, we)),
+        'd_north': np.broadcast_to(d_north, (sn, we)),
+        'd_we': np.broadcast_to(d_we, (sn, we)),
+        'd_sn': np.broadcast_to(d_sn, (sn, we)),
+        'dist': dist,
+    }
+
+
 def _build_boundary_mask(face, relax_width, we, sn, name):
     """Margin cells nearest `face`: the outermost `relax_width` rings, split by nearest edge.
 
@@ -254,16 +309,12 @@ def _build_boundary_mask(face, relax_width, we, sn, name):
             f'[wvt] region {name!r}: relax_width={relax_width} leaves no interior on a '
             f'{we}x{sn} grid.'
         )
-    j = np.arange(sn)[:, None]          # south-north (axis 0)
-    i = np.arange(we)[None, :]          # west-east   (axis 1)
-    d_west, d_east = i, we - 1 - i
-    d_south, d_north = j, sn - 1 - j
-    d_we = np.minimum(d_west, d_east)
-    d_sn = np.minimum(d_south, d_north)
-    in_margin = np.minimum(d_we, d_sn) < relax_width
+    g = margin_geometry(we, sn)
+    d_west, d_east, d_south, d_north = g['d_west'], g['d_east'], g['d_south'], g['d_north']
+    in_margin = g['dist'] < relax_width
 
     # Ties (d_we == d_sn) go to the meridional faces, hence <= here and strict < for S/N.
-    meridional = d_we <= d_sn
+    meridional = g['d_we'] <= g['d_sn']
     if face == 'west':
         sel = meridional & (d_west <= d_east)
     elif face == 'east':
@@ -321,10 +372,10 @@ def _build_region_mask(reg, lat, lon, landmask, relax_width, we, sn, domain_idx)
         mask = mask * box
 
     if relax_width > 0:
-        mask[:relax_width, :] = 0
-        mask[-relax_width:, :] = 0
-        mask[:, :relax_width] = 0
-        mask[:, -relax_width:] = 0
+        # The same margin the boundary shells occupy and the tiling check tests -- one
+        # definition (margin_geometry), so a source region and a shell cannot disagree about
+        # where the margin is.
+        mask[margin_geometry(we, sn)['dist'] < relax_width] = 0
 
     return mask
 
@@ -343,11 +394,7 @@ def create_trmask(domains, start_date):
     wvt_config = params.file.get('wvt', {})
     dynamics = params.file.get('dynamics', {})
 
-    # relax_width defaults to spec_bdy_width (from [bdy_control]) to match the WRF
-    # lateral boundary relaxation zone. Shared by all regions; override in [wvt].
-    bdy_control = params.file.get('bdy_control', {})
-    default_relax = bdy_control.get('spec_bdy_width', 5)
-    relax_width = wvt_config.get('relax_width', default_relax)
+    relax_width = resolve_relax_width(wvt_config, params.file.get('bdy_control', {}))
     # Tier-1 enclosed-water fill. Explicit rather than unconditional: it MOVES cells between
     # regions, so switching it on silently would break both reproduction of earlier runs and
     # the bit-identity gate on the region-cap raise. C1 sets it true.
@@ -464,11 +511,7 @@ def create_trmask(domains, start_date):
         bdy_idx = [k for k, r in enumerate(regions) if r['mask_type'] == 'boundary']
         if bdy_idx:
             shell = (masks[bdy_idx] > 0).any(axis=0)
-            margin = np.zeros(shell.shape, dtype=bool)
-            margin[:relax_width, :] = True
-            margin[-relax_width:, :] = True
-            margin[:, :relax_width] = True
-            margin[:, -relax_width:] = True
+            margin = margin_geometry(we, sn)['dist'] < relax_width
             extra = int((shell & ~margin).sum())
             if extra:
                 raise ValueError(

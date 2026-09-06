@@ -33,6 +33,9 @@ dependencies = [
   'sentry-sdk==2.39.0',
   'pyproj==3.7.1',
   'h5netcdf==1.6.3',
+  # create_trmask imports scipy.io.netcdf and scipy.ndimage at module scope; it arrived
+  # transitively until 2026-09-07 and the boundary-tag test harness now depends on it too.
+  'scipy==1.15.3',
   ]
 
 [dependency-groups]

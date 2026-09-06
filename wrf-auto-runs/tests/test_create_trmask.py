@@ -702,3 +702,71 @@ class TestEnclosedWaterFillEndToEnd:
         assert n == 4, 'the lake should be filled'
         assert out[0:4, :].all(), 'the land band stays land'
         assert not out[5:, :].any(), 'the open ocean must NOT be reclassified as land'
+
+
+class TestMarginGeometry:
+    """margin_geometry is the ONE margin definition; these pin it against independent witnesses."""
+
+    @pytest.mark.parametrize('we,sn,rw', [(99, 111, 5), (10, 10, 2), (200, 150, 5), (317, 537, 5)])
+    def test_dist_matches_the_literal_margin(self, we, sn, rw):
+        # The witness is written out in full ON PURPOSE. Do not "simplify" it to call the
+        # helper -- a test that derives its expectation from the thing under test cannot fail.
+        from create_trmask import margin_geometry
+        j = np.arange(sn)[:, None]
+        i = np.arange(we)[None, :]
+        literal = np.minimum(np.minimum(i, we - 1 - i), np.minimum(j, sn - 1 - j)) < rw
+        assert np.array_equal(margin_geometry(we, sn)['dist'] < rw, literal)
+
+    def test_shell_union_equals_dist_margin(self):
+        from create_trmask import margin_geometry
+        we, sn, rw = 99, 111, 5
+        union = sum(_build_boundary_mask(f, rw, we, sn, 'x') for f in BOUNDARY_FACES) > 0
+        assert np.array_equal(union, margin_geometry(we, sn)['dist'] < rw)
+
+
+class TestResolveRelaxWidth:
+    """The margin width has ONE default, shared with the namelist writer."""
+
+    def test_default_is_the_defaults_module_constant(self, monkeypatch):
+        # ⚠ Comparing against the constant is NOT enough: the constant is 5 and so was the old
+        # literal, so `resolve_relax_width({}, {}) == defaults[...]` passed with the literal
+        # restored (mutation-tested 2026-09-07 -- 141 passed with `default = 5` in place). The
+        # test must MOVE the constant and require the resolver to follow it.
+        import defaults
+        from create_trmask import resolve_relax_width
+        assert resolve_relax_width({}, {}) == defaults.WRF_BDY_CONTROL_DEFAULTS['spec_bdy_width']
+        monkeypatch.setitem(defaults.WRF_BDY_CONTROL_DEFAULTS, 'spec_bdy_width', 7)
+        assert resolve_relax_width({}, {}) == 7, 'the fallback is not read from defaults.py'
+
+    def test_precedence_wvt_over_bdy_control_over_default(self):
+        from create_trmask import resolve_relax_width
+        assert resolve_relax_width({}, {'spec_bdy_width': 10}) == 10
+        assert resolve_relax_width({'relax_width': 3}, {'spec_bdy_width': 10}) == 3
+
+    def test_per_domain_list_is_read_at_d01(self):
+        # set_params._first de-lists the namelist side; the mask side used to take the raw list
+        # and mask[:relax_width] raised TypeError while the width guard passed.
+        from create_trmask import resolve_relax_width
+        assert resolve_relax_width({}, {'spec_bdy_width': [10, 10]}) == 10
+        assert resolve_relax_width({'relax_width': [4, 4]}, {}) == 4
+        assert isinstance(resolve_relax_width({}, {'spec_bdy_width': [10, 10]}), int)
+
+
+class TestFaceSidesArePinned:
+    """Which SIDE a named face lands on. Every other witness is symmetric under a west/east or
+    south/north swap (counts 535/535/465/465, the union, the distance grid), so a swap inside
+    margin_geometry passed 141 tests (review round redund-code-1). These are not."""
+
+    def test_west_is_column_zero_and_south_is_row_zero(self):
+        we, sn, rw = 99, 111, 5
+        w = _build_boundary_mask('west', rw, we, sn, 'x') > 0
+        e = _build_boundary_mask('east', rw, we, sn, 'x') > 0
+        s = _build_boundary_mask('south', rw, we, sn, 'x') > 0
+        n = _build_boundary_mask('north', rw, we, sn, 'x') > 0
+        assert w[sn // 2, 0] and not e[sn // 2, 0] and e[sn // 2, we - 1] and not w[sn // 2, we - 1]
+        assert s[0, we // 2] and not n[0, we // 2] and n[sn - 1, we // 2] and not s[sn - 1, we // 2]
+
+    def test_boundary_faces_are_normalised_to_canonical_order(self):
+        assert normalize_boundary_faces({'boundary_faces': ['north', 'west']}) == ['west', 'north']
+        assert normalize_boundary_faces({'boundary_faces': ['south', 'east', 'north', 'west']}) \
+            == list(BOUNDARY_FACES)

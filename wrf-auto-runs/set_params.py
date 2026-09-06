@@ -15,7 +15,7 @@ import params
 import utils
 import defaults
 from create_trmask import num_wvt_regions as count_wvt_regions
-from create_trmask import normalize_boundary_faces
+from create_trmask import normalize_boundary_faces, resolve_relax_width
 
 # Compiled tracer-member ceiling. Must match MAX_WVT_REGIONS in the WRF build:
 # module_check_a_mundo.F (the num_wvt_regions bound), MAXREG in module_diag_wvt_columns.F,
@@ -440,7 +440,9 @@ def set_nml_params(domains=None):
             bdy_cfg = params.file.get('bdy_control', {})
             nml_w = _first(bdy_cfg.get('spec_bdy_width',
                                        defaults.WRF_BDY_CONTROL_DEFAULTS['spec_bdy_width']))
-            mask_w = wvt_cfg.get('relax_width', nml_w)
+            # The mask side is asked THROUGH create_trmask's own resolver, so this compares the
+            # width the masks will actually be built with -- not a re-derivation of it.
+            mask_w = resolve_relax_width(wvt_cfg, bdy_cfg)
             if int(mask_w) != int(nml_w):
                 raise ValueError(
                     f'[wvt] boundary_faces is set, but the mask margin width ({mask_w}) does not '
