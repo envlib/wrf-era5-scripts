@@ -15,6 +15,22 @@ import params
 import utils
 import defaults
 from create_trmask import num_wvt_regions as count_wvt_regions
+from create_trmask import normalize_boundary_faces
+
+# Compiled tracer-member ceiling. Must match MAX_WVT_REGIONS in the WRF build:
+# module_check_a_mundo.F (the num_wvt_regions bound), MAXREG in module_diag_wvt_columns.F,
+# and the three Registry generators (gen_wvt_{tracers,cuten,thum}.py).
+MAX_WVT_REGIONS = 12
+
+
+def _first(v):
+    """Namelist values may be per-domain lists; these checks look at d01.
+
+    Module level, not nested: set_nml_params calls it too. While it was nested inside
+    validate_wvt_regions, every config with a non-empty boundary_faces died with NameError
+    before a namelist was written -- and no test drove that path.
+    """
+    return v[0] if isinstance(v, list) else v
 
 
 ################################################
@@ -54,13 +70,10 @@ def validate_wvt_regions(wvt_config, dynamics, bl_pbl):
     num_wvt_regions is derived from the number of [[wvt.regions]] (1 for the flat
     single-region form). `bl_pbl` is the de-listed bl_pbl_physics value. Raises ValueError.
     """
-    def _first(v):
-        return v[0] if isinstance(v, list) else v
-
     n_regions = count_wvt_regions(wvt_config)
-    if n_regions > 8:
+    if n_regions > MAX_WVT_REGIONS:
         raise ValueError(
-            f'[wvt] defines {n_regions} regions but the build supports at most 8 '
+            f'[wvt] defines {n_regions} regions but the build supports at most {MAX_WVT_REGIONS} '
             '(MAX_WVT_REGIONS). Reduce the number of [[wvt.regions]].'
         )
     if n_regions <= 1:
@@ -83,6 +96,18 @@ def validate_wvt_regions(wvt_config, dynamics, bl_pbl):
         raise ValueError(
             f'multi-region WVT ({n_regions} regions) requires tracer3dsource=0 and tracer3dsink=0 '
             f'(3D source/sink is single-region only); got tracer3dsource={t3src}, tracer3dsink={t3sink}.'
+        )
+
+    # The auxinput8 trmask read is gated on tracer2dsource/tracer3dsource/tracer3dsink in
+    # share/mediation_wrfmain.F, and NOTHING couples that gate to the region count. With all
+    # three off, grid%trmask stays zero and every region sources nothing -- silently, with no
+    # error anywhere. That failure has happened in this stack before; refuse it here.
+    t2src = _first(dynamics.get('tracer2dsource', 0))
+    if t2src != 1:
+        raise ValueError(
+            f'multi-region WVT ({n_regions} regions) requires tracer2dsource=1 so WRF actually '
+            f'reads the trmask file; got tracer2dsource={t2src}. Without it grid%trmask stays '
+            'zero and every region sources nothing, without erroring.'
         )
 
 
@@ -361,6 +386,67 @@ def set_nml_params(domains=None):
                 'defined in [wvt]. Omit num_wvt_regions to derive it automatically, or fix the count.'
             )
         dynamics['num_wvt_regions'] = n_regions
+
+        # Lateral-boundary face tags: the LAST n_bdy regions are boundary regions.
+        # normalize_wvt_regions appends them, so "last" is true by construction and there is
+        # no ordering to validate. 0 (the Registry default) means the face relabel in
+        # solve_em.F never runs, which is exactly today's 8-region behaviour.
+        n_bdy = len(normalize_boundary_faces(params.file.get('wvt', {})))
+        user_b = dynamics.get('num_wvt_bdy_regions')
+        if isinstance(user_b, list):
+            user_b = user_b[0]
+        if user_b is not None and int(user_b) != n_bdy:
+            raise ValueError(
+                f'[dynamics] num_wvt_bdy_regions={user_b} does not match the {n_bdy} face(s) '
+                'in [wvt] boundary_faces. Omit it to derive it automatically.'
+            )
+        dynamics['num_wvt_bdy_regions'] = n_bdy
+
+        # Face tags are d01-only. On a nest, solve_em.F's spec_bdy_final runs AFTER the
+        # relabel and overwrites the boundary cells, and relax_bdy_scalar/spec_bdy_scalar run
+        # for tracers as well -- so d02 shells would be silently wrong rather than absent.
+        # create_trmask writes a mask for every domain, so without this guard a two-domain run
+        # would look fine and produce a broken d02 attribution.
+        if n_bdy:
+            # ⚠ Read the DERIVED domain count, not a TOML key. `max_dom` is something this
+            # function WRITES (wrf_dom['max_dom'] = n_domains above); real configs define
+            # nests with parent_id/parent_grid_ratio arrays and never carry a max_dom key, so
+            # reading it back from params.file always saw the default 1 and the guard never
+            # fired. Both arms of round wvt-bdytags-code-2 built a two-domain config and
+            # walked straight through it. Same shape as the earlier _first() defect: a check
+            # reading a value that is not where it looks.
+            if int(n_domains) > 1:
+                raise ValueError(
+                    f'[wvt] boundary_faces is set but the run has {n_domains} domains. '
+                    f'Lateral-boundary face '
+                    'tags are validated for a single domain only: on a nest WRF overwrites the '
+                    'relabelled boundary cells after the relabel runs. See '
+                    'wvt_boundary_tags_design.md sec 8.'
+                )
+
+        # create_trmask derives its margin width from [wvt] relax_width -> [bdy_control]
+        # spec_bdy_width -> literal 5, while the namelist value written below comes from
+        # defaults.WRF_BDY_CONTROL_DEFAULTS. Two independent derivations that agree only by
+        # coincidence of defaults. For a source mask a mismatch is cosmetic; for a boundary
+        # shell the margin width IS the region definition, so tie them together.
+        if n_bdy:
+            # Both sides must come from the SAME merged view. Reading the namelist side out
+            # of `bdy_control` was wrong: that dict is seeded from defaults above and the
+            # user's [bdy_control] is not merged into it until the override loop further
+            # down, so it always read 5 -- refusing a legitimate spec_bdy_width=10 and,
+            # worse, PASSING relax_width=5 alongside spec_bdy_width=10, which is exactly the
+            # silent mask/namelist mismatch this check exists to catch.
+            wvt_cfg = params.file.get('wvt', {})
+            bdy_cfg = params.file.get('bdy_control', {})
+            nml_w = _first(bdy_cfg.get('spec_bdy_width',
+                                       defaults.WRF_BDY_CONTROL_DEFAULTS['spec_bdy_width']))
+            mask_w = wvt_cfg.get('relax_width', nml_w)
+            if int(mask_w) != int(nml_w):
+                raise ValueError(
+                    f'[wvt] boundary_faces is set, but the mask margin width ({mask_w}) does not '
+                    f'match the spec_bdy_width written to the namelist ({nml_w}). The shells would '
+                    'not line up with the boundary zone they are meant to cover.'
+                )
 
     ## Direct WRF namelist sections from TOML
     override_sections = {

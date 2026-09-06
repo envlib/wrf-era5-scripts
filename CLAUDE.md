@@ -45,9 +45,27 @@ Both WPS builds inject heap-array allocation flags (`-fno-stack-arrays` for gfor
 **WVT source-mask bbox** (`[wvt]` in `create_trmask.py`): two mutually-exclusive forms, each intersected with `mask_type` and evaluated per-domain — `bbox_deg = [min_lat, max_lat, min_lon, max_lon]` (degrees; `min_lon > max_lon` selects a dateline-spanning arc, OR semantics in XLONG's -180..180 frame, for NZ Lambert domains whose east edge passes 180) and `bbox_ij = [i_min, i_max, j_min, j_max]` (0-based inclusive grid indices, i=west-east / j=south-north — straight, equal-area-per-cell bands preferred for ocean-fetch sensitivity tests since a lon band tapers poleward). The old `min_lat/max_lat/min_lon/max_lon` scalar keys are removed and raise a migration error.
 
 **Multi-region WVT** (image `:2.0`+): tag N disjoint source regions in ONE run (replaces N duplicate runs).
+**Lateral-boundary face tags** (`[wvt] boundary_faces`, added 2026-09-06; spec:
+`wrf-model-eval/docs/wvt_boundary_tags_design.md`). `boundary_faces = ["west", "east", "south", "north"]`
+appends one **column-relabel** region per face after the source regions, so their region indices are always
+last and the source indices never move. Absent or `[]` reproduces the pre-existing behaviour exactly, which
+is how the 8-region fallback is selected — a one-line edit, not a config rewrite. Each face's mask is the
+outermost `relax_width` cells nearest it (corner ties to west/east); the shells therefore sit exactly in the
+margin every source mask already zeroes, so they are disjoint from the sources by construction. Fewer than
+four faces is allowed (each face costs ≈0.4 node-days per simulated year) but leaves part of the margin
+untagged, which `create_trmask` reports on stderr. `set_params` derives `num_wvt_bdy_regions`, requires
+`tracer2dsource=1` (otherwise WRF never reads the mask file and every region silently sources nothing), and
+**refuses a multi-domain run** — on a nest `spec_bdy_final` overwrites the relabelled cells.
+
+**Enclosed-water fill** (`[wvt] fill_enclosed_water`, default `false`). Reclassifies water bodies with no
+4-connected path to the open sea (lakes, tidal harbours) as land in `create_trmask`'s **own derived copy**
+of the landmask — never the geogrid the physics reads. Off by default because it moves cells between
+regions, so enabling it changes results relative to earlier runs. When it is off and enclosed water exists,
+the tool says so on stderr.
+
 Define an array of `[[wvt.regions]]` tables under `[wvt]` (order = WRF region index; each region sets its own
 `mask_type`/`bbox_deg`/`bbox_ij`, inheriting a top-level `[wvt] mask_type` as default — e.g. a
-`mask_type="land"`+NZ-bbox region for the land-ET case). `create_trmask.py` derives `num_wvt_regions` (1..8)
+`mask_type="land"`+NZ-bbox region for the land-ET case). `create_trmask.py` derives `num_wvt_regions` (1..12)
 from the region count (validates it if the user also set it) and writes a region-dimensioned
 `TRMASK(Time, wvt_regions, sn, we)` (always — even N=1, since the WRF registry field is `i{wvtreg}j`).
 **Regions MUST be disjoint** (no cell in two masks — `create_trmask` errors on overlap): each region tags its

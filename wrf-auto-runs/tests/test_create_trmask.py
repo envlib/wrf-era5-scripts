@@ -4,7 +4,9 @@ import pendulum
 import pytest
 import scipy.io.netcdf as nc3
 
-from create_trmask import create_trmask, normalize_wvt_regions, num_wvt_regions
+from create_trmask import (BOUNDARY_FACES, _build_boundary_mask, create_trmask,
+                           fill_enclosed_water, normalize_boundary_faces,
+                           normalize_wvt_regions, num_wvt_regions)
 
 
 # Deterministic small grid: 10x10, left half land (x < 5), right half ocean.
@@ -483,3 +485,220 @@ class TestNormalizeWvtRegions:
     def test_empty_regions_array_raises(self):
         with pytest.raises(ValueError, match='non-empty array'):
             normalize_wvt_regions({'regions': []})
+
+
+class TestBoundaryFaceShells:
+    """Lateral-boundary face tags: the shells must tile the margin with no gap or overlap."""
+
+    @pytest.mark.parametrize('we,sn', [(99, 111), (10, 10), (200, 150), (317, 537)])
+    def test_shells_exactly_tile_the_margin(self, we, sn):
+        rw = 5 if min(we, sn) > 12 else 2
+        masks = {f: _build_boundary_mask(f, rw, we, sn, 'x') for f in BOUNDARY_FACES}
+        total = sum(masks.values())
+        j = np.arange(sn)[:, None]
+        i = np.arange(we)[None, :]
+        margin = np.minimum(np.minimum(i, we - 1 - i), np.minimum(j, sn - 1 - j)) < rw
+        # A gap is the dangerous case: a margin cell in no shell and no source region is a
+        # permanent untagged source that the remainder floor absorbs silently.
+        assert (total <= 1).all(), 'shells overlap'
+        assert ((total > 0) == margin).all(), 'shells do not exactly tile the margin'
+
+    def test_corner_convention_is_pinned(self):
+        # Ties go to the meridional faces. This is the convention the tiling check depends on;
+        # if it changes, the numbers below change with it -- deliberately hard to alter silently.
+        counts = [int(_build_boundary_mask(f, 5, 99, 111, 'x').sum()) for f in BOUNDARY_FACES]
+        assert counts == [535, 535, 465, 465]
+
+    def test_boundary_region_rejects_a_bbox(self):
+        from create_trmask import _validate_region
+        reg = {'name': 'west_face', 'mask_type': 'boundary', 'face': 'west',
+               'bbox_deg': [-40, -30, 170, 175], 'bbox_ij': None}
+        with pytest.raises(ValueError, match='takes no bbox'):
+            _validate_region(reg)
+
+    def test_face_rejected_on_non_boundary_region(self):
+        from create_trmask import _validate_region
+        reg = {'name': 'r', 'mask_type': 'ocean', 'face': 'west', 'bbox_deg': None, 'bbox_ij': None}
+        with pytest.raises(ValueError, match='only meaningful'):
+            _validate_region(reg)
+
+
+class TestBoundaryFacesKey:
+    """[wvt] boundary_faces -- the single switch, and the ways it could silently do nothing."""
+
+    def test_absent_means_no_boundary_regions(self):
+        regions = normalize_wvt_regions({'mask_type': 'ocean', 'regions': [{'name': 'a'}]})
+        assert [r['mask_type'] for r in regions] == ['ocean']
+
+    def test_faces_are_appended_after_the_sources(self):
+        regions = normalize_wvt_regions({
+            'mask_type': 'ocean',
+            'regions': [{'name': 'a'}, {'name': 'b'}],
+            'boundary_faces': ['west', 'east'],
+        })
+        assert [r['name'] for r in regions] == ['a', 'b', 'west_face', 'east_face']
+        # "boundary regions are last" must hold BY CONSTRUCTION -- nothing validates it.
+        assert [r['mask_type'] for r in regions] == ['ocean', 'ocean', 'boundary', 'boundary']
+
+    def test_faces_apply_to_the_legacy_flat_form_too(self):
+        # The flat single-region form returns early; appending inside the [[wvt.regions]]
+        # branch alone would make the key a silent no-op here.
+        regions = normalize_wvt_regions({'mask_type': 'ocean', 'boundary_faces': ['north']})
+        assert [r['name'] for r in regions] == ['region_01', 'north_face']
+
+    def test_hand_declared_boundary_region_is_refused(self):
+        with pytest.raises(ValueError, match='boundary_faces'):
+            normalize_wvt_regions({'regions': [{'name': 'x', 'mask_type': 'boundary'}]})
+
+    def test_unknown_or_duplicate_face_is_refused(self):
+        with pytest.raises(ValueError, match='unknown face'):
+            normalize_boundary_faces({'boundary_faces': ['up']})
+        with pytest.raises(ValueError, match='more than once'):
+            normalize_boundary_faces({'boundary_faces': ['west', 'west']})
+
+    def test_string_instead_of_list_is_refused(self):
+        # 'west' would otherwise iterate as characters and produce four bogus faces.
+        with pytest.raises(ValueError, match='must be an array'):
+            normalize_boundary_faces({'boundary_faces': 'west'})
+
+
+class TestEnclosedWaterFill:
+    """Tier-1 fill: enclosed water becomes land in the tool's own derived landmask."""
+
+    def test_interior_lake_is_filled(self):
+        lm = np.zeros((12, 12))
+        lm[3:9, 3:9] = 1.0
+        lm[5:7, 5:7] = 0.0
+        out, n = fill_enclosed_water(lm)
+        assert n == 4 and out[3:9, 3:9].all()
+        assert out[0, 0] == 0.0, 'open ocean must stay ocean'
+
+    def test_water_open_to_the_sea_is_not_filled(self):
+        lm = np.zeros((12, 12))
+        lm[3:9, 3:9] = 1.0
+        lm[5:7, 0:6] = 0.0          # channel out to the west edge
+        assert fill_enclosed_water(lm)[1] == 0
+
+    def test_connectivity_is_four_not_eight(self):
+        # The interior water cell (2,2) reaches the open ocean ONLY through the diagonal gap at
+        # (1,1). Under 4-connectivity that is not a path, so it stays enclosed and is filled.
+        # Under 8-connectivity it leaks and nothing is filled.
+        #
+        #   . . . . .      . = open ocean
+        #   . o L L .      o = the diagonal gap at (1,1)
+        #   . L w L .      w = interior water at (2,2)
+        #   . L L L .      L = land
+        #   . . . . .
+        #
+        # This case is the whole point of pinning the convention: an earlier version of this
+        # test used two diagonally-adjacent interior cells, which are enclosed under BOTH
+        # conventions, so it passed with 8-connectivity substituted and tested nothing.
+        lm = np.zeros((5, 5))
+        lm[1:4, 1:4] = 1.0
+        lm[2, 2] = 0.0      # interior water
+        lm[1, 1] = 0.0      # diagonal gap to the open ocean
+        assert fill_enclosed_water(lm)[1] == 1
+
+    def test_input_is_not_mutated(self):
+        lm = np.zeros((12, 12))
+        lm[3:9, 3:9] = 1.0
+        lm[5:7, 5:7] = 0.0
+        before = lm.copy()
+        fill_enclosed_water(lm)
+        assert np.array_equal(lm, before), 'must never mutate the caller\'s landmask'
+
+    def test_degenerate_grids(self):
+        assert fill_enclosed_water(np.ones((5, 5)))[1] == 0
+        assert fill_enclosed_water(np.zeros((5, 5)))[1] == 0
+
+
+class TestBoundaryFacesEndToEnd:
+    """create_trmask() driven all the way through with boundary_faces set.
+
+    A dual-blind review showed the unit tests above pass with the tiling check DISABLED and
+    with the boundary early-return REMOVED, because nothing exercised the integration wiring.
+    Testing `_build_boundary_mask` in isolation does not test create_trmask using it.
+    """
+
+    RW = 2  # the fixture grid is 10x10, so a 2-cell margin leaves a 6x6 interior
+
+    def _cfg(self, mock_params, faces, **extra):
+        _configure(mock_params, {'mask_type': 'ocean', 'relax_width': self.RW,
+                                 'regions': [{'name': 'sea'}],
+                                 'boundary_faces': faces, **extra})
+
+    def test_twelve_regions_written_and_shells_tile_the_margin(self, mock_params, tmp_path):
+        _write_fake_geo_em(tmp_path / 'geo_em.d01.nc')
+        self._cfg(mock_params, list(BOUNDARY_FACES))
+        create_trmask([1], START)
+
+        masks = np.stack([_read_trmask(tmp_path / 'trmask_d01', region=r) for r in range(5)])
+        margin = np.zeros((SN, WE), dtype=bool)
+        margin[:self.RW, :] = margin[-self.RW:, :] = True
+        margin[:, :self.RW] = margin[:, -self.RW:] = True
+
+        shells = masks[1:]
+        # The early return is what lets the shells occupy the margin at all: without it the
+        # generic path zeroes exactly these cells and the region comes out empty.
+        assert (shells.sum(axis=0) > 0).sum() == margin.sum()
+        np.testing.assert_array_equal(shells.sum(axis=0) > 0, margin)
+        assert (shells.sum(axis=0) <= 1).all(), 'shells overlap'
+        # and the source region still avoids the margin entirely
+        assert not (masks[0] > 0)[margin].any()
+
+    def test_a_partial_face_list_is_allowed_but_announced(self, mock_params, tmp_path, capsys):
+        # Fewer faces is a legitimate cost choice (~0.4 node-days per face per sim-year), so
+        # it must not be an error -- but the untagged margin has to be reported, or the larger
+        # untagged remainder downstream looks like a physics result rather than a config choice.
+        _write_fake_geo_em(tmp_path / 'geo_em.d01.nc')
+        self._cfg(mock_params, ['west', 'east', 'south'])
+        create_trmask([1], START)
+        err = capsys.readouterr().err
+        assert 'in NO shell' in err and '3 of 4 faces' in err
+
+    def test_shells_may_not_escape_the_margin(self, mock_params, tmp_path):
+        # A shell wider than the margin must be refused. Which check catches it depends on the
+        # source regions: with a full-domain source it overlaps one, so the pre-existing
+        # disjointness check fires first; if the sources had a bbox leaving those cells free,
+        # nothing but the margin check would notice. Assert the property, not the messenger.
+        _write_fake_geo_em(tmp_path / 'geo_em.d01.nc')
+        self._cfg(mock_params, list(BOUNDARY_FACES))
+        import create_trmask as ct
+        orig = ct._build_boundary_mask
+        try:
+            ct._build_boundary_mask = lambda f, rw, we, sn, n: orig(f, rw + 1, we, sn, n)
+            with pytest.raises(ValueError, match='overlap|OUTSIDE the margin'):
+                create_trmask([1], START)
+        finally:
+            ct._build_boundary_mask = orig
+
+    def test_margin_check_catches_an_escape_the_overlap_check_cannot(self, mock_params, tmp_path):
+        # The case that isolates the new check: the source region is bbox-restricted to the
+        # interior, so an over-wide shell overlaps nothing and the disjointness check is blind.
+        _write_fake_geo_em(tmp_path / 'geo_em.d01.nc')
+        _configure(mock_params, {'mask_type': 'ocean', 'relax_width': self.RW,
+                                 'regions': [{'name': 'sea', 'bbox_ij': [4, 5, 4, 5]}],
+                                 'boundary_faces': list(BOUNDARY_FACES)})
+        import create_trmask as ct
+        orig = ct._build_boundary_mask
+        try:
+            ct._build_boundary_mask = lambda f, rw, we, sn, n: orig(f, rw + 1, we, sn, n)
+            with pytest.raises(ValueError, match='OUTSIDE the margin'):
+                create_trmask([1], START)
+        finally:
+            ct._build_boundary_mask = orig
+
+
+class TestEnclosedWaterFillEndToEnd:
+    def test_open_ocean_is_the_largest_component_not_the_first(self, tmp_path):
+        # The fill's whole safety is "the largest water component is the sea". On a grid whose
+        # first raster row is land, a lake gets label 1 and the sea gets label 2, so an
+        # implementation that assumed label 1 would reclassify the ENTIRE OCEAN as land and
+        # every existing test would still pass.
+        lm = np.zeros((10, 10))
+        lm[0:4, :] = 1.0        # land band across the top -- so the lake is found first
+        lm[1:3, 1:3] = 0.0      # 4-cell lake inside that band
+        out, n = fill_enclosed_water(lm)
+        assert n == 4, 'the lake should be filled'
+        assert out[0:4, :].all(), 'the land band stays land'
+        assert not out[5:, :].any(), 'the open ocean must NOT be reclassified as land'

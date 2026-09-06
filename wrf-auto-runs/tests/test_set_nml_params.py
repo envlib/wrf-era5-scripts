@@ -6,6 +6,7 @@ import pytest
 
 import defaults
 import params
+import set_params
 from set_params import set_nml_params, validate_wvt_regions
 
 
@@ -373,13 +374,27 @@ class TestValidateWvtRegions:
         validate_wvt_regions({'mask_type': 'ocean'}, {'tracer_opt': 4, 'tracer3dsource': 1}, bl_pbl=1)
 
     def test_multi_region_valid_config(self):
-        dyn = {'tracer_opt': 4, 'tracer3dsource': 0, 'tracer3dsink': 0}
+        dyn = {'tracer_opt': 4, 'tracer2dsource': 1, 'tracer3dsource': 0, 'tracer3dsink': 0}
         validate_wvt_regions(self.MULTI, dyn, bl_pbl=0)  # should not raise
 
     def test_too_many_regions(self):
-        wvt = {'regions': [{'name': f'r{i}'} for i in range(9)]}
-        with pytest.raises(ValueError, match='at most 8'):
+        # Keyed off the constant, not a literal: the cap moves with the compiled member
+        # count (8 -> 12 for the boundary-face regions), and a literal here just means
+        # editing the test every time rather than testing anything.
+        n = set_params.MAX_WVT_REGIONS
+        wvt = {'regions': [{'name': f'r{i}'} for i in range(n + 1)]}
+        with pytest.raises(ValueError, match=f'at most {n}'):
             validate_wvt_regions(wvt, {'tracer_opt': 4}, bl_pbl=0)
+
+    def test_region_count_at_the_cap_is_accepted(self):
+        # Exactly MAX regions must PASS -- the boundary of the guard itself.
+        # NOT a check that MAX_WVT_REGIONS agrees with the Fortran: this test reads the same
+        # constant it is testing, so reverting it to 8 leaves the whole suite green (verified
+        # by mutation). That cross-repo coupling is checked by check_generators.sh in
+        # wrf-docker-builds, which is the only place both trees are present.
+        n = set_params.MAX_WVT_REGIONS
+        wvt = {'regions': [{'name': f'r{i}'} for i in range(n)]}
+        validate_wvt_regions(wvt, {'tracer_opt': 4, 'tracer2dsource': 1}, bl_pbl=0)
 
     def test_multi_region_requires_tracer_opt_4(self):
         with pytest.raises(ValueError, match='tracer_opt'):
@@ -400,5 +415,75 @@ class TestValidateWvtRegions:
             validate_wvt_regions(self.MULTI, dyn, bl_pbl=0)
 
     def test_per_domain_list_values_handled(self):
-        dyn = {'tracer_opt': [4, 4], 'tracer3dsource': [0, 0], 'tracer3dsink': [0, 0]}
+        dyn = {'tracer_opt': [4, 4], 'tracer2dsource': [1, 1], 'tracer3dsource': [0, 0], 'tracer3dsink': [0, 0]}
         validate_wvt_regions(self.MULTI, dyn, bl_pbl=0)  # de-lists to first element; should not raise
+
+
+class TestBoundaryFacesNamelist:
+    """The boundary-face path through set_nml_params.
+
+    This class exists because a dual-blind review found that path crashed with NameError on
+    every config that used it, while 122 tests passed: nothing drove set_nml_params with
+    boundary_faces set. Unit-testing the helpers is not the same as running the path.
+    """
+
+    @staticmethod
+    def _wvt(mock_params, faces, **wvt_extra):
+        mock_params['domains']['max_dom'] = 1
+        mock_params['dynamics'] = {'tracer_opt': 4, 'tracer2dsource': 1,
+                                   'tracer3dsource': 0, 'tracer3dsink': 0}
+        mock_params['physics'] = {'bl_pbl_physics': 0}
+        mock_params['wvt'] = {'mask_type': 'ocean',
+                              'regions': [{'name': 'a'}, {'name': 'b'}],
+                              'boundary_faces': faces, **wvt_extra}
+        return mock_params
+
+    def test_faces_reach_the_namelist(self, mock_params, tmp_path):
+        # Regression: this raised NameError before _first was hoisted to module level.
+        self._wvt(mock_params, ['west', 'east', 'south', 'north'])
+        set_nml_params(domains=[1])
+        nml = f90nml.read(params.wrf_nml_path)
+        assert nml['dynamics']['num_wvt_regions'] == 6
+        assert nml['dynamics']['num_wvt_bdy_regions'] == 4
+
+    def test_no_faces_writes_zero(self, mock_params, tmp_path):
+        self._wvt(mock_params, [])
+        set_nml_params(domains=[1])
+        nml = f90nml.read(params.wrf_nml_path)
+        assert nml['dynamics']['num_wvt_bdy_regions'] == 0
+
+    def test_widened_boundary_zone_is_accepted(self, mock_params, tmp_path):
+        # spec_bdy_width=10 with relax_width unset: masks and namelist BOTH use 10, so this
+        # must pass. It was refused while the check compared against the un-merged default.
+        self._wvt(mock_params, ['west', 'east', 'south', 'north'])
+        mock_params['bdy_control'] = {'spec_bdy_width': 10}
+        set_nml_params(domains=[1])
+        nml = f90nml.read(params.wrf_nml_path)
+        assert nml['bdy_control']['spec_bdy_width'] == 10
+
+    def test_mask_and_namelist_width_mismatch_is_refused(self, mock_params, tmp_path):
+        # The case that actually matters: shells would cover 5 rows while WRF relaxes 10,
+        # leaving rows 6-10 relaxed toward untagged LBC moisture inside the source masks.
+        # This PASSED before the fix.
+        self._wvt(mock_params, ['west', 'east', 'south', 'north'], relax_width=5)
+        mock_params['bdy_control'] = {'spec_bdy_width': 10}
+        with pytest.raises(ValueError, match='does not match the spec_bdy_width'):
+            set_nml_params(domains=[1])
+
+    def test_faces_refused_on_a_nested_run(self, mock_params, tmp_path):
+        # d02 shells would be silently wrong: spec_bdy_final runs after the relabel on nests
+        # and overwrites the boundary cells. create_trmask writes a mask for every domain, so
+        # nothing downstream would flag it.
+        #
+        # ⚠ This deliberately does NOT set a max_dom key. The original test did, and that is
+        # the only reason it passed: real configs define nests with parent_id arrays, so the
+        # guard was reading a key that never exists and never fired. A test that injects the
+        # value the guard reads proves only that the guard can read.
+        self._wvt(mock_params, ['west', 'east', 'south', 'north'])
+        with pytest.raises(ValueError, match='domains'):
+            set_nml_params(domains=[1, 2])
+
+    def test_faces_allowed_on_a_single_domain_run(self, mock_params, tmp_path):
+        self._wvt(mock_params, ['west', 'east', 'south', 'north'])
+        set_nml_params(domains=[1])
+        assert f90nml.read(params.wrf_nml_path)['dynamics']['num_wvt_bdy_regions'] == 4

@@ -24,9 +24,11 @@ Generates TRMASK (2D source) when tracer2dsource=1 and/or TRMASK3D (3D source,
 single-region only) when tracer3dsource=1.
 """
 import os
+import sys
 
 import numpy as np
 import scipy.io.netcdf as nc3
+from scipy import ndimage
 import h5netcdf
 
 import params
@@ -49,29 +51,83 @@ def normalize_wvt_regions(wvt_config):
 
     if regions_raw is None:
         # Flat single-region form.
-        return [{
+        regions = [{
             'name': wvt_config.get('name', 'region_01'),
             'mask_type': default_mask_type,
             'bbox_deg': wvt_config.get('bbox_deg'),
             'bbox_ij': wvt_config.get('bbox_ij'),
+            'face': None,
         }]
+    else:
+        if not isinstance(regions_raw, list) or not regions_raw:
+            raise ValueError(
+                '[wvt] regions must be a non-empty array of tables, e.g. [[wvt.regions]]'
+            )
 
-    if not isinstance(regions_raw, list) or not regions_raw:
-        raise ValueError(
-            '[wvt] regions must be a non-empty array of tables, e.g. [[wvt.regions]]'
-        )
+        regions = []
+        for i, r in enumerate(regions_raw):
+            if not isinstance(r, dict):
+                raise ValueError(f'[wvt] regions[{i}] must be a table, got {r!r}')
+            if r.get('mask_type') == 'boundary':
+                raise ValueError(
+                    f"[wvt] regions[{i}]: mask_type = \"boundary\" cannot be declared in "
+                    '[[wvt.regions]]. Lateral-boundary face tags come from the [wvt] '
+                    'boundary_faces key, which appends them after the source regions so that '
+                    'their region indices are always last. Declaring one by hand would break '
+                    'that ordering silently.'
+                )
+            regions.append({
+                'name': r.get('name', f'region_{i + 1:02d}'),
+                'mask_type': r.get('mask_type', default_mask_type),
+                'bbox_deg': r.get('bbox_deg'),
+                'bbox_ij': r.get('bbox_ij'),
+                'face': None,
+            })
 
-    regions = []
-    for i, r in enumerate(regions_raw):
-        if not isinstance(r, dict):
-            raise ValueError(f'[wvt] regions[{i}] must be a table, got {r!r}')
+    # Lateral-boundary face tags, appended AFTER the source regions in both input forms.
+    # Appending here (rather than letting the user place them) is what makes "boundary
+    # regions are last" true by construction, so no ordering check is needed anywhere --
+    # and doing it after the two forms converge is what stops the key being a silent no-op
+    # on the legacy flat config.
+    for face in normalize_boundary_faces(wvt_config):
         regions.append({
-            'name': r.get('name', f'region_{i + 1:02d}'),
-            'mask_type': r.get('mask_type', default_mask_type),
-            'bbox_deg': r.get('bbox_deg'),
-            'bbox_ij': r.get('bbox_ij'),
+            'name': f'{face}_face',
+            'mask_type': 'boundary',
+            'bbox_deg': None,
+            'bbox_ij': None,
+            'face': face,
         })
     return regions
+
+
+#: The four lateral faces, in the order their region indices are assigned.
+BOUNDARY_FACES = ('west', 'east', 'south', 'north')
+
+
+def normalize_boundary_faces(wvt_config):
+    """Return the ordered list of lateral faces to tag, from ``[wvt] boundary_faces``.
+
+    Absent or ``[]`` means no boundary tags, which reproduces the pre-existing behaviour
+    exactly: every existing parameters.toml is unaffected and emits no new namelist key.
+    """
+    faces = wvt_config.get('boundary_faces', [])
+    if faces is None:
+        faces = []
+    if isinstance(faces, str):
+        raise ValueError(
+            f'[wvt] boundary_faces must be an array, e.g. ["west", "east"]; got a string {faces!r}'
+        )
+    faces = list(faces)
+    seen = set()
+    for f in faces:
+        if f not in BOUNDARY_FACES:
+            raise ValueError(
+                f'[wvt] boundary_faces: unknown face {f!r}. Valid faces: {", ".join(BOUNDARY_FACES)}.'
+            )
+        if f in seen:
+            raise ValueError(f'[wvt] boundary_faces: face {f!r} listed more than once.')
+        seen.add(f)
+    return faces
 
 
 def num_wvt_regions(wvt_config):
@@ -104,11 +160,29 @@ def _validate_region(reg):
             f'[wvt] region {name!r}: mask_type = "bbox" is no longer supported. '
             'Use mask_type = "all" together with bbox_deg or bbox_ij.'
         )
-    if mask_type not in ('land', 'ocean', 'all'):
-        raise ValueError(f'[wvt] region {name!r}: Unknown mask_type {mask_type!r}. Use land, ocean, or all.')
+    if mask_type not in ('land', 'ocean', 'all', 'boundary'):
+        raise ValueError(
+            f'[wvt] region {name!r}: Unknown mask_type {mask_type!r}. Use land, ocean, all, or boundary.'
+        )
 
     bbox_deg = reg['bbox_deg']
     bbox_ij = reg['bbox_ij']
+
+    if mask_type == 'boundary':
+        if reg.get('face') not in BOUNDARY_FACES:
+            raise ValueError(
+                f'[wvt] region {name!r}: boundary regions need face in {BOUNDARY_FACES}; '
+                f'got {reg.get("face")!r}'
+            )
+        if bbox_deg is not None or bbox_ij is not None:
+            raise ValueError(
+                f'[wvt] region {name!r}: a boundary region takes no bbox -- the face and the '
+                'margin width ARE its geometry.'
+            )
+    elif reg.get('face') is not None:
+        raise ValueError(
+            f'[wvt] region {name!r}: face is only meaningful for mask_type = "boundary".'
+        )
     if bbox_deg is not None and bbox_ij is not None:
         raise ValueError(f'[wvt] region {name!r}: set only one of bbox_deg or bbox_ij, not both.')
 
@@ -127,6 +201,83 @@ def _validate_region(reg):
             raise ValueError(f'[wvt] region {name!r}: bbox_ij indices must be >= 0; got {bbox_ij}')
 
 
+#: 4-connectivity structuring element. The connectivity convention DECIDES which cells count
+#: as enclosed -- under 8-connectivity Manukau and Kaipara touch open ocean diagonally and the
+#: count drops from 9 to 7 on the C1 d01 grid -- so it is pinned here, not left to a default.
+_CONN4 = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]], dtype=bool)
+
+
+def fill_enclosed_water(landmask):
+    """Reclassify enclosed water bodies (lakes, tidal harbours) as land.
+
+    Operates on a COPY of the landmask this tool derives from the geogrid. It never touches
+    the geogrid or the LANDMASK the model physics reads -- turning Taupo into land tiles in
+    the surface scheme is one careless edit away and is not what this is for.
+
+    Rationale (wvt_region_basis_validation.md sec 4.8): the analysis landmask fills interior
+    lakes, so Taupo counts toward the NZ landmass for RECEIVING precipitation while its
+    EVAPORATION is tagged to whichever ocean bbox encloses it. Same water, land on one side of
+    the ledger and ocean on the other.
+
+    Returns (filled_landmask, n_filled).
+    """
+    landmask = np.asarray(landmask)
+    water = landmask < 0.5
+    lab, n = ndimage.label(water, structure=_CONN4)
+    if n <= 1:
+        return landmask.copy(), 0
+    sizes = ndimage.sum(np.ones_like(lab), lab, index=range(1, n + 1))
+    open_ocean = int(np.argmax(sizes)) + 1      # the one component that is the open sea
+    enclosed = water & (lab != open_ocean)
+    out = landmask.copy()
+    out[enclosed] = 1.0
+    return out, int(enclosed.sum())
+
+
+def _build_boundary_mask(face, relax_width, we, sn, name):
+    """Margin cells nearest `face`: the outermost `relax_width` rings, split by nearest edge.
+
+    Corner convention: nearest face wins; a tie goes to WEST/EAST (the meridional faces).
+
+    Note what pins this: the tiling check does NOT -- it only asks that the union of the
+    shells equals the margin, which holds under either tie-break (verified by mutation). The
+    convention is pinned solely by test_corner_convention_is_pinned. It decides which face is
+    credited with a corner cell's inflow, so changing it silently would shift attribution
+    between faces without any check noticing.
+    """
+    if relax_width <= 0:
+        raise ValueError(
+            f'[wvt] region {name!r}: boundary regions need relax_width > 0; got {relax_width}'
+        )
+    if 2 * relax_width >= min(we, sn):
+        raise ValueError(
+            f'[wvt] region {name!r}: relax_width={relax_width} leaves no interior on a '
+            f'{we}x{sn} grid.'
+        )
+    j = np.arange(sn)[:, None]          # south-north (axis 0)
+    i = np.arange(we)[None, :]          # west-east   (axis 1)
+    d_west, d_east = i, we - 1 - i
+    d_south, d_north = j, sn - 1 - j
+    d_we = np.minimum(d_west, d_east)
+    d_sn = np.minimum(d_south, d_north)
+    in_margin = np.minimum(d_we, d_sn) < relax_width
+
+    # Ties (d_we == d_sn) go to the meridional faces, hence <= here and strict < for S/N.
+    meridional = d_we <= d_sn
+    if face == 'west':
+        sel = meridional & (d_west <= d_east)
+    elif face == 'east':
+        sel = meridional & (d_east < d_west)
+    elif face == 'south':
+        sel = (~meridional) & (d_south <= d_north)
+    elif face == 'north':
+        sel = (~meridional) & (d_north < d_south)
+    else:
+        raise ValueError(f'[wvt] region {name!r}: unknown face {face!r}')
+
+    return (in_margin & sel).astype('f4')
+
+
 def _build_region_mask(reg, lat, lon, landmask, relax_width, we, sn, domain_idx):
     """Build the 2D float32 source mask for one region on one domain grid.
 
@@ -134,6 +285,10 @@ def _build_region_mask(reg, lat, lon, landmask, relax_width, we, sn, domain_idx)
     lateral relaxation zone zeroed (tracers are not conserved there).
     """
     mask_type = reg['mask_type']
+    if mask_type == 'boundary':
+        # The shell IS the margin every source mask excludes, so it deliberately bypasses the
+        # zeroing at the end of this function -- returning early is what implements that.
+        return _build_boundary_mask(reg['face'], relax_width, we, sn, reg['name'])
     if mask_type == 'land':
         mask = landmask.copy()
     elif mask_type == 'ocean':
@@ -193,6 +348,10 @@ def create_trmask(domains, start_date):
     bdy_control = params.file.get('bdy_control', {})
     default_relax = bdy_control.get('spec_bdy_width', 5)
     relax_width = wvt_config.get('relax_width', default_relax)
+    # Tier-1 enclosed-water fill. Explicit rather than unconditional: it MOVES cells between
+    # regions, so switching it on silently would break both reproduction of earlier runs and
+    # the bit-identity gate on the region-cap raise. C1 sets it true.
+    fill_water = bool(wvt_config.get('fill_enclosed_water', False))
 
     do_2d = dynamics.get('tracer2dsource', 0) == 1
     do_3d = dynamics.get('tracer3dsource', 0) == 1
@@ -255,6 +414,18 @@ def create_trmask(domains, start_date):
             lat = np.array(geo['XLAT_M'][0, :, :])
             lon = np.array(geo['XLONG_M'][0, :, :])
             landmask = np.array(geo['LANDMASK'][0, :, :])
+            if fill_water:
+                landmask, n_filled = fill_enclosed_water(landmask)
+                print(f'-- [wvt] d{domain_idx:02d}: filled {n_filled} enclosed-water cell(s) '
+                      'into the land mask (lakes/harbours tag as land, not ocean)',
+                      file=sys.stderr)
+            else:
+                _, n_enclosed = fill_enclosed_water(landmask)
+                if n_enclosed:
+                    print(f'-- [wvt] d{domain_idx:02d}: NOTE {n_enclosed} enclosed-water cell(s) '
+                          '(lakes/harbours) will be tagged as OCEAN. Set [wvt] '
+                          'fill_enclosed_water = true to count them as land.',
+                          file=sys.stderr)
             mminlu = geo.attrs.get('MMINLU', 'MODIFIED_IGBP_MODIS_NOAH')
             num_land_cat = geo.attrs.get('NUM_LAND_CAT', 21)
             if isinstance(mminlu, bytes):
@@ -270,7 +441,7 @@ def create_trmask(domains, start_date):
                 raise ValueError(
                     f"[wvt] region {reg['name']!r} has an empty mask on d{domain_idx:02d} "
                     f"(mask_type={reg['mask_type']!r}, bbox_deg={reg['bbox_deg']}, bbox_ij={reg['bbox_ij']}). "
-                    'Check the mask_type / bbox selects source cells inside the relaxation zone.'
+                    'Check the mask_type / bbox selects cells OUTSIDE the zeroed boundary margin.'
                 )
 
         # Disjointness: every source cell must belong to at most one region, or the
@@ -284,6 +455,49 @@ def create_trmask(domains, start_date):
                 f'(first at j={jj[0]}, i={ii[0]}); regions must be disjoint. '
                 'Adjust the bboxes/mask_types so no cell is tagged by two regions.'
             )
+
+        # Boundary shells must EXACTLY tile the zeroed margin. A margin cell in no shell and
+        # no source region is not a harmless gap: it is a permanent untagged source, and the
+        # untagged-remainder floor absorbs it silently rather than reporting it. Checked on
+        # the masks actually written, across every region -- the face list alone cannot see a
+        # source region that failed to zero its margin.
+        bdy_idx = [k for k, r in enumerate(regions) if r['mask_type'] == 'boundary']
+        if bdy_idx:
+            shell = (masks[bdy_idx] > 0).any(axis=0)
+            margin = np.zeros(shell.shape, dtype=bool)
+            margin[:relax_width, :] = True
+            margin[-relax_width:, :] = True
+            margin[:, :relax_width] = True
+            margin[:, -relax_width:] = True
+            extra = int((shell & ~margin).sum())
+            if extra:
+                raise ValueError(
+                    f'[wvt] {extra} boundary-shell cell(s) fall OUTSIDE the margin on '
+                    f'd{domain_idx:02d} (relax_width={relax_width}); shells must stay within '
+                    'the margin the source masks exclude, or they would overlap a source region.'
+                )
+            missing = int((margin & ~shell).sum())
+            n_faces = len(bdy_idx)
+            if n_faces == len(BOUNDARY_FACES):
+                # All four listed: the margin must be tiled exactly. A gap here is a bug, and
+                # it would surface downstream only as a slightly larger untagged remainder.
+                if missing:
+                    raise ValueError(
+                        f'[wvt] boundary shells leave {missing} margin cell(s) in no shell on '
+                        f'd{domain_idx:02d} with all four faces listed (relax_width='
+                        f'{relax_width}). That is a tiling bug, not a configuration choice.'
+                    )
+            elif missing:
+                # Fewer faces is a legitimate cost choice -- each face is roughly 0.4 node-days
+                # per simulated year -- but it means inflow through the unlisted faces is NOT
+                # tagged, and that shows up as a larger untagged remainder rather than as an
+                # error. Say so loudly rather than letting the number drift unexplained.
+                print(
+                    f'-- [wvt] d{domain_idx:02d}: {n_faces} of {len(BOUNDARY_FACES)} faces '
+                    f'tagged; {missing} margin cell(s) are in NO shell, so inflow there stays '
+                    'untagged and the untagged remainder will be correspondingly larger.',
+                    file=sys.stderr,
+                )
 
         _write_trmask(trmask_path, lat, lon, masks, times_str, mminlu, num_land_cat,
                       do_2d=do_2d, do_3d=do_3d, n_vert=n_vert, region_axis=region_axis)
